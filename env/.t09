@@ -1,0 +1,8 @@
+# Paths
+export LOGS='/media/ExtHDD01/logs/'
+export DATASET='/media/ExtHDD01/Dataset/paired_images/'
+#export DATASET='/home/ghc/Dropbox/Family Room/LabProjects/BRC/1220_organoid_roi/'
+
+# Submodels
+export model_t2d='submodels/netG_TSE_DESS_up256patchgan.pth'
+export model_seg='submodels/SegScale.pth'
