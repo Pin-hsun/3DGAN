@@ -292,7 +292,7 @@ for epoch in range(*args.nepochs):
     diffall = [torch.cat(x, 3) for x in diffall]
     out2all = [torch.cat(x, 3) for x in out2all]
 
-    segall = [x[0,:,:,0] for x in segall]
+    segall = [x[0, :, :, 0] for x in segall]
     diffvar = [x.var(3) for x in diffall]
     diffall = [x.mean(3) for x in diffall]
     out2all = [x.mean(3) for x in out2all]
