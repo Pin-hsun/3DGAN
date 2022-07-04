@@ -2,14 +2,15 @@ from __future__ import print_function
 import argparse
 import torch.nn as nn
 from torch.utils.data import DataLoader
-
-import os, shutil, copy
+import os, shutil
 from dotenv import load_dotenv
 
-from utils.make_config import *
+from utils.make_config import load_json, save_json
+import json
 import pytorch_lightning as pl
 from pytorch_lightning import loggers as pl_loggers
 import pandas as pd
+
 
 def prepare_log(args):
     """
@@ -81,9 +82,9 @@ GAN = getattr(__import__('engine.' + engine), engine).GAN
 parser = GAN.add_model_specific_args(parser)
 
 # Read json file and update it
-with open('engine/jsn/' + parser.parse_args().jsn + '.json', 'rt') as f:
+with open('env/jsn/' + parser.parse_args().jsn + '.json', 'rt') as f:
     t_args = argparse.Namespace()
-    t_args.__dict__.update(json.load(f))
+    t_args.__dict__.update(json.load(f)['train'])
     args = parser.parse_args(namespace=t_args)
 
 # environment file
@@ -104,7 +105,7 @@ if args.index:  # if use customized index
     folder = '/full/'
     # train_index = range(*args.train_index)
     # new index
-    df = pd.read_csv('/home/ghc/Dropbox/TheSource/scripts/OAI_pipelines/meta/subjects_unipain_womac3.csv')
+    df = pd.read_csv(os.getenv("HOME") + '/Dropbox/TheSource/scripts/OAI_pipelines/meta/subjects_unipain_womac3.csv')
     train_index = [x for x in range(df.shape[0]) if not df['has_moaks'][x]]
     eval_index = [x for x in range(df.shape[0]) if df['has_moaks'][x]]
     # train_index = range(213, 710)
@@ -127,7 +128,7 @@ logger = pl_loggers.TensorBoardLogger(os.environ.get('LOGS') + args.dataset + '/
 checkpoints = os.path.join(os.environ.get('LOGS'), args.dataset, args.prj, 'checkpoints')
 os.makedirs(checkpoints, exist_ok=True)
 net = GAN(hparams=args, train_loader=train_loader, test_loader=None, checkpoints=checkpoints)
-trainer = pl.Trainer(gpus=[0],  # distributed_backend='ddp',
+trainer = pl.Trainer(gpus=-1, strategy='ddp',
                      max_epochs=args.n_epochs, progress_bar_refresh_rate=20, logger=logger)
 print(args)
 trainer.fit(net, train_loader)  # test loader not used during training

@@ -63,11 +63,11 @@ class BaseModel(pl.LightningModule):
 
         # Define Loss Functions
         self.CELoss = CrossEntropyLoss()
-        self.criterionL1 = nn.L1Loss().cuda()
+        self.criterionL1 = nn.L1Loss()
         if self.hparams.gan_mode == 'vanilla':
             self.criterionGAN = nn.BCEWithLogitsLoss()
         else:
-            self.criterionGAN = GANLoss(self.hparams.gan_mode).cuda()
+            self.criterionGAN = GANLoss(self.hparams.gan_mode)
         self.segLoss = SegmentationCrossEntropyLoss()
 
         # Final
@@ -118,7 +118,7 @@ class BaseModel(pl.LightningModule):
             print('use ugatit generator')
             self.net_g = ResnetGenerator(input_nc=self.hparams.input_nc,
                                          output_nc=self.hparams.output_nc, ngf=self.hparams.ngf,
-                                         n_blocks=2, img_size=128, light=True)
+                                         n_blocks=1, img_size=128, light=True)
             self.net_g_inc = 0
         else:
             from models.networks import define_G

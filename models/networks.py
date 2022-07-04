@@ -50,6 +50,14 @@ def get_norm_layer(norm_type='instance'):
     return norm_layer
 
 
+def lambda_rule(epoch):
+    #lr_l = 1.0 - max(0, epoch + opt.epoch_count - opt.n_epochs) / float(opt.n_epochs_decay + 1)
+    n_epochs_decay = 100
+    n_epochs = 201
+    epoch_count = 0
+    lr_l = 1.0 - max(0, epoch + epoch_count - n_epochs) / float(n_epochs_decay + 1)
+    return lr_l
+
 def get_scheduler(optimizer, opt):
     """Return a learning rate scheduler
 
@@ -64,9 +72,6 @@ def get_scheduler(optimizer, opt):
     See https://pytorch.org/docs/stable/optim.html for more details.
     """
     if opt.lr_policy == 'lambda':
-        def lambda_rule(epoch):
-            lr_l = 1.0 - max(0, epoch + opt.epoch_count - opt.n_epochs) / float(opt.n_epochs_decay + 1)
-            return lr_l
         scheduler = lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda_rule)
     elif opt.lr_policy == 'step':
         scheduler = lr_scheduler.StepLR(optimizer, step_size=opt.lr_decay_iters, gamma=0.1)
@@ -142,6 +147,7 @@ def define_G(input_nc, output_nc, ngf, netG, norm='batch', use_dropout=False, in
     """Create a generator
 
     Parameters:
+
         input_nc (int) -- the number of channels in input images
         output_nc (int) -- the number of channels in output images
         ngf (int) -- the number of filters in the last conv layer

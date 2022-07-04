@@ -99,7 +99,6 @@ class Pix2PixModel:
 
         ###
         self.net_g.train()
-        output, output1 = self.net_g(in_img, alpha * torch.ones(1, 2).cuda())
         for i in range(1):
             try: ## descargan new
                 output, output1 = self.net_g(in_img, alpha * torch.ones(1, 2).cuda())
@@ -144,18 +143,10 @@ class Pix2PixModel:
         bone = self.seg_bone(ori.cuda().unsqueeze(0))
         bone = torch.argmax(bone, 1)[0,::].detach().cpu()
 
-        cartilage = self.seg_cartilage(ori.cuda().unsqueeze(0))
-        cartilage = torch.argmax(cartilage, 1)[0,::].detach().cpu()
+        seg = self.seg_cartilage(ori.cuda().unsqueeze(0))
+        seg = torch.argmax(seg, 1)[0,::].detach().cpu()
 
-        #seg[seg == 3] = 0
-        #seg[seg == 4] = 0
-
-        seg = 1 * bone
-
-        #cartilage = self.cartilage(norm_01(ori).cuda().unsqueeze(0))
-        #cartilage = torch.argmax(cartilage, 1)[0,::].detach().cpu()
-
-        return cartilage
+        return seg
 
     def get_magic(self, ori):
         magic = self.magic286(ori.cuda().unsqueeze(0))
@@ -163,16 +154,17 @@ class Pix2PixModel:
         return magic
 
     def get_all_seg(self, input_ori):
-        # normalize
-        if self.args.n01:
+        if self.args.n01 or self.args.gray:
             input =[]
             for i in range(len(input_ori)):
                 temp = []
                 for j in range(len(input_ori[0])):
                     o = input_ori[i][j]
-                    if args.gray:
+                    if self.args.gray:
                         o = torch.cat([o]*3, 0)
-                    temp.append(transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))(o))
+                    if self.args.n01:
+                        o = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))(o)
+                    temp.append(o)
                 input.append(temp)
         else:
             input = input_ori
@@ -238,9 +230,9 @@ parser.add_argument('--nalpha', default=(0, 100, 1), nargs='+', help='range of a
 parser.add_argument('--mode', type=str, default='dummy')
 parser.add_argument('--port', type=str, default='dummy')
 
-with open('outputs/jsn/' + parser.parse_args().jsn + '.json', 'rt') as f:
+with open('env/jsn/' + parser.parse_args().jsn + '.json', 'rt') as f:
     t_args = argparse.Namespace()
-    t_args.__dict__.update(json.load(f))
+    t_args.__dict__.update(json.load(f)['test'])
     args = parser.parse_args(namespace=t_args)
 
 # environment file
@@ -321,8 +313,5 @@ for epoch in range(*args.nepochs):
 
 
 # USAGE
-# CUDA_VISIBLE_DEVICES=0 python test.py --jsn default --dataset pain --nalpha 0 100 2  --prj VryAtt
-# CUDA_VISIBLE_DEVICES=0 python test.py --jsn default --dataset TSE_DESS --nalpha 0 100 1  --prj VryCycleUP --net netGXY
-# python testoai.py --jsn womac3 --direction a_b --prj N01/DescarMul/ --cropsize 384 --n01 --cmb mul
-
+# CUDA_VISIBLE_DEVICES=1 python testoai.py --jsn womac3 --direction a_b --prj Gds/NS/Gdsmc --cropsize 384 --n01 --cmb mul --gray --nepochs 100 101 20 --nalpha 0 20 20
 
