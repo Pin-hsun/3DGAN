@@ -29,8 +29,9 @@ class GAN(BaseModel):
         return parent_parser
 
     def generation(self):
-        self.oriX = self.batch[0]
-        self.oriY = self.batch[1]
+        img = self.batch['img']
+        self.oriX = img[0]
+        self.oriY = img[1]
 
         self.imgX0, self.imgX1 = self.net_g(self.oriX, a=torch.zeros(self.oriX.shape[0], self.net_g_inc).cuda())
 

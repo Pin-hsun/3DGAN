@@ -96,13 +96,19 @@ def conv2d_block(in_channels, out_channels, kernel=3, stride=1, padding=1, activ
 
 
 class Generator(nn.Module):
-    def __init__(self, n_channels=1, nf=32, batch_norm=True, activation=ACTIVATION, final='tanh'):
+    def __init__(self, n_channels=1, out_channels=1, nf=32, batch_norm=True, activation=ACTIVATION, final='tanh', mc=False):
         super(Generator, self).__init__()
 
         conv_block = conv2d_bn_block if batch_norm else conv2d_block
 
         max_pool = nn.MaxPool2d(2)
         act = activation
+
+        if mc:
+            dropout = 0.5
+        else:
+            dropout = 0.0
+
         self.label_k = torch.tensor([0, 1]).half().cuda()
         self.c_dim = 0
 
@@ -118,12 +124,14 @@ class Generator(nn.Module):
         self.down2 = nn.Sequential(
             max_pool,
             conv_block(2 * nf, 4 * nf, activation=act),
+            nn.Dropout(p=dropout, inplace=False),
             conv_block(4 * nf, 4 * nf, activation=act),
 
         )
         self.down3 = nn.Sequential(
             max_pool,
             conv_block(4 * nf, 8 * nf, activation=act),
+            nn.Dropout(p=dropout, inplace=False),
             conv_block(8 * nf, 8 * nf, activation=act),
         )
 
@@ -131,11 +139,13 @@ class Generator(nn.Module):
 
         self.conv5 = nn.Sequential(
             conv_block(8 * nf, 4 * nf, activation=act),  # 8
+            nn.Dropout(p=dropout, inplace=False),
             conv_block(4 * nf, 4 * nf, activation=act),
         )
         self.up2 = deconv2d_bn_block(4 * nf, 2 * nf, activation=act)
         self.conv6 = nn.Sequential(
             conv_block(4 * nf, 2 * nf, activation=act),
+            nn.Dropout(p=dropout, inplace=False),
             conv_block(2 * nf, 2 * nf, activation=act),
         )
 
@@ -144,20 +154,18 @@ class Generator(nn.Module):
         final_layer = get_activation(final)
 
         self.conv7_k = nn.Sequential(
-            conv_block(nf, nf, activation=act),
-            conv_block(nf, n_channels, activation=final_layer),
+            conv_block(nf, out_channels, activation=final_layer),
         )
 
         self.conv7_g = nn.Sequential(
-            conv_block(nf, nf, activation=act),
-            conv_block(nf, n_channels, activation=final_layer),
+            conv_block(nf, out_channels, activation=final_layer),
         )
 
         #if NoTanh:
         #    self.conv7_k[-1] = self.conv7_k[-1][:-1]
         #    self.conv7_g[-1] = self.conv7_g[-1][:-1]
 
-    def forward(self, xori, a):
+    def forward(self, xori, a=None):
         x = 1 * xori
         # c: (B, C)
         self.c_dim = 0
@@ -169,16 +177,16 @@ class Generator(nn.Module):
 
         x0 = self.down0(x)
         x1 = self.down1(x0)
-        x2 = self.down2(x1)
-        x3 = self.down3(x2)
+        x2 = self.down2(x1)   # Dropout
+        x3 = self.down3(x2)   # Dropout
 
         xu3 = self.up3(x3)
         cat3 = torch.cat([xu3, x2], 1)
-        x5 = self.conv5(cat3)
+        x5 = self.conv5(cat3)   # Dropout
+
         xu2 = self.up2(x5)
         cat2 = torch.cat([xu2, x1],1)
-
-        x6 = self.conv6(cat2)
+        x6 = self.conv6(cat2)   # Dropout
         xu1 = self.up1(x6)
         #cat1 = crop_and_concat(xu1, x0)
 
@@ -189,72 +197,8 @@ class Generator(nn.Module):
 
         return x70, x71
 
-
-class Discriminator(nn.Module):
-
-    def __init__(self, n_channels=6, init_filters=16, batch_norm=False):
-        super(Discriminator, self).__init__()
-        nf = init_filters
-        self.label_k = torch.ones(1).long().cuda()
-
-        conv_block = conv2d_bn_block if batch_norm else conv2d_block
-
-        max_pool = nn.MaxPool2d
-        self.encoder = nn.Sequential(
-            conv_block(n_channels, nf),
-            max_pool(2),
-            conv_block(nf, 2 * nf),
-
-            max_pool(2),
-            conv_block(2 * nf, 4 * nf),
-            conv_block(4 * nf, 4 * nf),
-            max_pool(2),
-            conv_block(4 * nf, 8 * nf),
-            conv_block(8 * nf, 8 * nf),
-            max_pool(2),
-            conv_block(8 * nf, 8 * nf),
-            conv_block(8 * nf, 8 * nf),
-            max_pool(2),
-            conv_block(8 * nf, 16 * nf),
-
-        )
-        kernel_size = int(240 / np.power(2, 5))
-        self.conv_k = nn.Sequential(conv_block(16 * nf, 16 * nf), conv_block(16 * nf, 16 * nf),
-                                    conv_block(16 * nf, 1, kernel=1, activation=Identity), )
-        self.conv_g = nn.Sequential(conv_block(16 * nf, 16 * nf), conv_block(16 * nf, 16 * nf),
-                                    conv_block(16 * nf, 1, kernel=1, activation=Identity), )
-        self.conv2 = nn.Sequential(conv_block(16 * nf, 16 * nf), conv_block(16 * nf, 16 * nf), max_pool(2), )
-
-        self.linearclass = nn.Sequential(
-
-            Flatten(),
-            nn.Linear(16 * nf * 4 * 4, 64),
-            nn.ReLU(True),
-            nn.Dropout(p=0.1),
-            nn.Linear(64, 2),
-
-        )
-
-    def forward(self, x, label=torch.ones(1).long().cuda()):
-        h = self.encoder(x)
-        if label == self.label_k:
-            out = self.conv_k(h)
-        else:
-            out = self.conv_g(h)
-        zwischen = self.conv2(h)
-
-        klasse = self.linearclass(zwischen)
-
-        return out, klasse.reshape(klasse.size(0), klasse.size(1))
-
-
 if __name__ == '__main__':
-    g = Generator(n_channels=3, batch_norm=False, final='tanh').cuda()
+    g = Generator(n_channels=3, batch_norm=False, final='tanh')
     #from torchsummary import summary
     from utils.data_utils import print_num_of_parameters
     print_num_of_parameters(g)
-
-    d = Discriminator()
-    dout = d(torch.rand(1, 6, 256, 256))
-    #summary(g, [(3, 256, 256), (2)])
-    #o = g(torch.rand(2, 3, 256, 256).cuda(), torch.ones(2, 2).cuda())

@@ -1,0 +1,38 @@
+{
+    "dataset": "womac3",
+    "testset": "womac3/test/",
+    "unpaired": false,
+    "direction": "a_b",
+    "prj": "verify/descar2/Gdescarsmc",
+    "netg": "netG",
+    "resize": 384,
+    "cropsize": 384,
+    "t2d": true,
+    "irange0": [149, 244, 338, 437, 442, 618, 628, 658],
+    "irange1": [14, 24, 45, 190, 270, 283, 403, 459, 503],
+    "irange": [14, 24, 190, 270, 283, 459, 503, 149, 244, 338, 437, 442, 618, 628, 658],
+    "irangesmall": [29, 39, 119, 139, 212],
+    "flip": false,
+    "eval": false,
+    "n01": true,
+    "gray": true,
+    "cmb": "mul",
+    "nepochs": [
+        200,
+        201,
+        10
+    ],
+    "nalpha": [
+        0,
+        19,
+        20
+    ],
+    "show": [
+        "oriX",
+        "oriY",
+        "imgXY",
+        "diff_imgXY_oriX"
+    ],
+    "mode": "client",
+    "port": "45727"
+}

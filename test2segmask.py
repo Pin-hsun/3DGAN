@@ -98,8 +98,8 @@ class Pix2PixModel:
         output = output.detach().cpu()
         output1 = output1.detach().cpu()
 
-        #oriX = 0 * output
-        #oriY = 0 * output1
+        oriX = 0 * output
+        oriY = 0 * output1
 
         return oriX, oriY, output, output1, name
 
@@ -256,69 +256,28 @@ for epoch in range(*args.nepochs):
             imgXY = torch.cat(imgXY, 0)
             imgXY1 = torch.cat(imgXY1, 0)
 
-            imgXseg = test_unit.get_segmentation(imgX)
-            imgYseg = test_unit.get_segmentation(imgY)
-            imgXYseg = test_unit.get_segmentation(imgXY)
-            imgXY1seg = test_unit.get_segmentation(imgXY1)
-
-            diff_XY = imgX - imgXY
-            diff_XY1 = imgX - imgXY1
-
-            tag = False
-            diffseg0 = seperate_by_seg(x0=diff_XY, seg=imgXYseg, masked=[0, 2, 4], absolute=tag, threshold=0, rgb=tag)
-            diffseg1 = seperate_by_seg(x0=diff_XY, seg=imgXYseg, masked=[1, 3], absolute=tag, threshold=0, rgb=tag)
-
-            diff1seg0 = seperate_by_seg(x0=diff_XY1, seg=imgXY1seg, masked=[0, 2, 4], absolute=tag, threshold=0, rgb=tag)
-            diff1seg1 = seperate_by_seg(x0=diff_XY1, seg=imgXY1seg, masked=[1, 3], absolute=tag, threshold=0, rgb=tag)
-
             # monte carlo
-            diffseg0_all.append(diffseg0.unsqueeze(4))
-            diffseg1_all.append(diffseg1.unsqueeze(4))
+            diffseg0_all.append(imgXY.unsqueeze(4))
 
         # mponte carlo end
         diffseg0_all = torch.cat(diffseg0_all, 4)
-        diffseg1_all = torch.cat(diffseg1_all, 4)
 
         diffseg0_mean = diffseg0_all.mean(4)[:, 0, :, :]
         diffseg0_std = diffseg0_all.std(4)[:, 0, :, :]
         diffseg0_unc = torch.div(diffseg0_mean, diffseg0_std+0.0001)
 
-        diffseg1_mean = diffseg1_all.mean(4)[:, 0, :, :]
-        diffseg1_std = diffseg1_all.std(4)[:, 0, :, :]
-        diffseg1_unc = torch.div(diffseg1_mean, diffseg1_std+0.0001)
-
         diffseg0_unc[diffseg0_mean == 0] = 0
-        diffseg1_unc[diffseg1_mean == 0] = 0
 
         d0 = diffseg0_mean
-        d1 = diffseg1_mean
 
-        u0 = diffseg0_unc
-        u1 = diffseg1_unc
-
-
-        if 1:
-            m = 20
-            u0[:, 0, 0] = m
-            u1[:, 0, 0] = m
-            u0[u0 >= m] = m
-            u1[u1 >= m] = m
-
-        if 1:
-            m = 1
-            d0[:, 0, 0] = m
-            d1[:, 0, 0] = m
-            d0[d0 >= m] = m
-            d1[d1 >= m] = m
+        u0 = diffseg0_std
 
         imgXY[imgXY < 0] = 0
 
         to_show = [imgX,
                    imgXY,
                    torch.cat([d0.unsqueeze(0).unsqueeze(0)] * 3, 1),
-                   torch.cat([d1.unsqueeze(0).unsqueeze(0)] * 3, 1),
                    torch.cat([u0.unsqueeze(0).unsqueeze(0)] * 3, 1),
-                   torch.cat([u1.unsqueeze(0).unsqueeze(0)] * 3, 1),
                    # diff1seg0,
                    # diff1seg1
                    ]
@@ -335,17 +294,7 @@ for epoch in range(*args.nepochs):
 
         sig = get_significance(x0=d0.numpy(), y0=u0.numpy(), xt=0.2, yt=0.2).astype(np.float32)
         sig = u0.numpy().astype(np.float32)
-        destination = '/media/ExtHDD01/Dataset/paired_images/womac3/full/moaks/abmlm/'
-        os.makedirs(destination, exist_ok=True)
-        if args.bysubject:
-            for b in range(to_print.shape[0]):
-                tiff.imsave(destination + names[0][b].split('/')[-1], sig[b, ::])
-        else:
-            tiff.imsave(destination + names[0][0].split('/')[-1], sig)
-
-        sig = get_significance(x0=d1.numpy(), y0=u1.numpy(), xt=0.9, yt=0.5).astype(np.float32)
-        sig = u1.numpy().astype(np.float32)
-        destination = '/media/ExtHDD01/Dataset/paired_images/womac3/full/moaks/aeffm/'
+        destination = '/media/ExtHDD01/Dataset/paired_images/womac3/full/moaks/maskv/'
         os.makedirs(destination, exist_ok=True)
         if args.bysubject:
             for b in range(to_print.shape[0]):

@@ -27,6 +27,8 @@ def combine(x, y, method):
         return torch.mul(x, y)
     elif method == 'multanh':
         return torch.mul((x + 1) / 2, y)
+    elif method == 'not':
+        return x
 
 
 class BaseModel(pl.LightningModule):
@@ -99,6 +101,25 @@ class BaseModel(pl.LightningModule):
             self.net_g = Generator(n_channels=self.hparams.input_nc, out_channels=self.hparams.output_nc, batch_norm=usebatch, final=self.hparams.final,
                                    mc=self.hparams.mc)
             self.net_g_inc = 2
+        elif (self.hparams.netG).startswith('ds'):
+            print('descar generator: ' + self.hparams.netG)
+            Generator = getattr(getattr(__import__('models.DSGan.' + self.hparams.netG), 'DSGan'),
+                                self.hparams.netG).Generator
+            # descargan only has options for batchnorm or none
+            if self.hparams.norm == 'batch':
+                usebatch = True
+            elif self.hparams.norm == 'none':
+                usebatch = False
+            self.net_g = Generator(n_channels=self.hparams.input_nc, out_channels=self.hparams.output_nc, batch_norm=usebatch, final=self.hparams.final,
+                                   mc=self.hparams.mc)
+            self.net_g_inc = 2
+        elif self.hparams.netG == 'ugatit':
+            from models.ugatit.networks import ResnetGenerator
+            print('use ugatit generator')
+            self.net_g = ResnetGenerator(input_nc=self.hparams.input_nc,
+                                         output_nc=self.hparams.output_nc, ngf=self.hparams.ngf,
+                                         n_blocks=2, img_size=128, light=True)
+            self.net_g_inc = 0
         else:
             from models.networks import define_G
             self.net_g = define_G(input_nc=self.hparams.input_nc, output_nc=self.hparams.output_nc,
@@ -127,10 +148,10 @@ class BaseModel(pl.LightningModule):
             from models.DeScarGan.descargan import Discriminator
             print('use descargan discriminator')
             self.net_d = Discriminator(n_channels=self.hparams.input_nc * 2)
-        elif self.hparams.netD == 'descars':
-            from models.DeScarGan.descarganshallow import Discriminator
-            print('use descargan shallow discriminator')
-            self.net_d = Discriminator(n_channels=self.hparams.input_nc * 2)
+        elif self.hparams.netD == 'ugatit':
+            from models.ugatit.networks import Discriminator
+            print('use ugatit discriminator')
+            self.net_d = Discriminator(self.hparams.input_nc * 2, ndf=64, n_layers=5)
         # original pix2pix, the size of patchgan is strange, just use for pixel-D
         else:
             from models.networks import define_D
