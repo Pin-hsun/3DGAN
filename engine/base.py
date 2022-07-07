@@ -74,10 +74,6 @@ class BaseModel(pl.LightningModule):
         self.hparams.update(vars(self.hparams))   # updated hparams to be logged in tensorboard
         self.train_loader.dataset.shuffle_images()
 
-    def test_method(self, net_g, x):
-        output, = net_g(x[0])
-        return output
-
     def set_networks(self):
         # GENERATOR
         if self.hparams.netG == 'attgan':
@@ -118,7 +114,7 @@ class BaseModel(pl.LightningModule):
             print('use ugatit generator')
             self.net_g = ResnetGenerator(input_nc=self.hparams.input_nc,
                                          output_nc=self.hparams.output_nc, ngf=self.hparams.ngf,
-                                         n_blocks=1, img_size=128, light=True)
+                                         n_blocks=4, img_size=128, light=True)
             self.net_g_inc = 0
         else:
             from models.networks import define_G
@@ -176,6 +172,20 @@ class BaseModel(pl.LightningModule):
         self.optimizer_g = optim.Adam(netg_parameters, lr=self.hparams.lr, betas=(self.hparams.beta1, 0.999))
         self.optimizer_d = optim.Adam(netd_parameters, lr=self.hparams.lr, betas=(self.hparams.beta1, 0.999))
         return [self.optimizer_d, self.optimizer_g], []
+
+    def add_loss_adv(self, a, net_d, coeff, truth, b=None, log=None, stacked=False):
+        if stacked:
+            fake_in = torch.cat((a, b), 1)
+        else:
+            fake_in = torch.cat((a, a), 1)
+        disc_logits = net_d(fake_in)[0]
+        if truth:
+            adv = self.criterionGAN(disc_logits, torch.ones_like(disc_logits))
+        else:
+            adv = self.criterionGAN(disc_logits, torch.zeros_like(disc_logits))
+        if log is not None:
+            self.log(log, adv, on_step=False, on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
+        return coeff * adv
 
     def add_loss_adv(self, a, net_d, coeff, truth, b=None, log=None, stacked=False):
         if stacked:

@@ -241,7 +241,7 @@ for epoch in range(*args.nepochs):
 
     iirange = range(len(test_unit.test_set))
 
-    for ii in iirange[:500]:
+    for ii in iirange[:200]:
         if args.all:
             args.irange = [ii]
 
@@ -334,8 +334,8 @@ for epoch in range(*args.nepochs):
             return z
 
         sig = get_significance(x0=d0.numpy(), y0=u0.numpy(), xt=0.2, yt=0.2).astype(np.float32)
-        sig = u0.numpy().astype(np.float32)
-        destination = '/media/ExtHDD01/Dataset/paired_images/womac3/full/moaks/abmlm/'
+        sig = d0.numpy().astype(np.float32)
+        destination = '/media/ExtHDD01/Dataset/paired_images/womac3/full/moaks/abml/'
         os.makedirs(destination, exist_ok=True)
         if args.bysubject:
             for b in range(to_print.shape[0]):
@@ -344,8 +344,8 @@ for epoch in range(*args.nepochs):
             tiff.imsave(destination + names[0][0].split('/')[-1], sig)
 
         sig = get_significance(x0=d1.numpy(), y0=u1.numpy(), xt=0.9, yt=0.5).astype(np.float32)
-        sig = u1.numpy().astype(np.float32)
-        destination = '/media/ExtHDD01/Dataset/paired_images/womac3/full/moaks/aeffm/'
+        sig = d1.numpy().astype(np.float32)
+        destination = '/media/ExtHDD01/Dataset/paired_images/womac3/full/moaks/aeff/'
         os.makedirs(destination, exist_ok=True)
         if args.bysubject:
             for b in range(to_print.shape[0]):
@@ -365,4 +365,4 @@ for epoch in range(*args.nepochs):
 
 # CUDA_VISIBLE_DEVICES=1 python test2.py --jsn womac3 --direction a_b --prj bysubjectright/mc/descar2/Gunet128 --cropsize 384 --n01 --nalpha 0 100 101 --all --nepochs 80
 
-# CUDA_VISIBLE_DEVICES=1 python test2seg.py --jsn womac3 --direction a_b --prj verify/descar2/Gdescarsmc --cropsize 384 --n01 --nalpha 0 20 21 --all --nepochs 200 --gray --testset womac3/full/
+# CUDA_VISIBLE_DEVICES=1 python test2seg.py --jsn womac3 --direction a_b --prj verify/descar2/Gdescarsmc --cropsize 384 --n01 --nalpha 0 100 101 --all --nepochs 40 --gray --testset womac3/full/

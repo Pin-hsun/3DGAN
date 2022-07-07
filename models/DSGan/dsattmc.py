@@ -16,6 +16,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
+from models.model_utils import get_activation
 
 sig = nn.Sigmoid()
 ACTIVATION = nn.ReLU
@@ -25,28 +26,6 @@ ACTIVATION = nn.ReLU
 class Flatten(torch.nn.Module):
     def forward(self, x):
         return x.reshape(x.size()[0], -1)
-
-
-class Identity(nn.Module):
-    def forward(self, x):
-        return x
-
-
-def get_activation(fn):
-    if fn == 'none':
-        return Identity
-    elif fn == 'relu':
-        return nn.ReLU
-    elif fn == 'lrelu':
-        return nn.LeakyReLU(0.01)  # pix2pix use 0.2
-    elif fn == 'sigmoid':
-        return nn.Sigmoid
-    elif fn == 'tanh':
-        return nn.Tanh
-    else:
-        raise Exception('Unsupported activation function: ' + str(fn))
-
-
 
 def crop_and_concat(upsampled, bypass, crop=False):
     if crop:
@@ -95,6 +74,36 @@ def conv2d_block(in_channels, out_channels, kernel=3, stride=1, padding=1, activ
     )
 
 
+class Attention_block(nn.Module):
+    def __init__(self, F_g, F_l, F_int):
+        super(Attention_block, self).__init__()
+        self.W_g = nn.Sequential(
+            nn.Conv2d(F_g, F_int, kernel_size=1, stride=1, padding=0, bias=True),
+            nn.BatchNorm2d(F_int)
+        )
+
+        self.W_x = nn.Sequential(
+            nn.Conv2d(F_l, F_int, kernel_size=1, stride=1, padding=0, bias=True),
+            nn.BatchNorm2d(F_int)
+        )
+
+        self.psi = nn.Sequential(
+            nn.Conv2d(F_int, 1, kernel_size=1, stride=1, padding=0, bias=True),
+            nn.BatchNorm2d(1),
+            nn.Sigmoid()
+        )
+
+        self.relu = nn.ReLU(inplace=True)
+
+    def forward(self, g, x):
+        g1 = self.W_g(g)
+        x1 = self.W_x(x)
+        psi = self.relu(g1 + x1)
+        psi = self.psi(psi)
+
+        return x * psi
+
+
 class Generator(nn.Module):
     def __init__(self, n_channels=1, out_channels=1, nf=32, batch_norm=True, activation=ACTIVATION, final='tanh', mc=False):
         super(Generator, self).__init__()
@@ -109,6 +118,7 @@ class Generator(nn.Module):
         else:
             dropout = 0.0
 
+        self.label_k = torch.tensor([0, 1]).half().cuda()
         self.c_dim = 0
 
         self.down0 = nn.Sequential(
@@ -153,18 +163,18 @@ class Generator(nn.Module):
         final_layer = get_activation(final)
 
         self.conv7_k = nn.Sequential(
-            conv_block(2*nf, out_channels, activation=final_layer),
+            conv_block(nf, out_channels, activation=final_layer),
         )
 
         self.conv7_g = nn.Sequential(
-            conv_block(2*nf, out_channels, activation=final_layer),
+            conv_block(nf, out_channels, activation=final_layer),
         )
 
+        self.Att3 = Attention_block(F_g=128, F_l=128, F_int=64)
+        self.Att2 = Attention_block(F_g=64, F_l=64, F_int=32)
         #if NoTanh:
         #    self.conv7_k[-1] = self.conv7_k[-1][:-1]
         #    self.conv7_g[-1] = self.conv7_g[-1][:-1]
-
-        self.upfinal = torch.nn.Upsample(scale_factor=2, mode='bilinear--lamb 10')
 
     def forward(self, xori, a=None):
         x = 1 * xori
@@ -182,27 +192,30 @@ class Generator(nn.Module):
         x3 = self.down3(x2)   # Dropout
 
         xu3 = self.up3(x3)
+        x2 = self.Att3(g=xu3, x=x2)
         cat3 = torch.cat([xu3, x2], 1)
         x5 = self.conv5(cat3)   # Dropout
 
         xu2 = self.up2(x5)
+        x1 = self.Att2(g=xu2, x=x1)
         cat2 = torch.cat([xu2, x1], 1)
         x6 = self.conv6(cat2)   # Dropout
 
-        #xu1 = self.up1(x6)
+        xu1 = self.up1(x6)
+        #cat1 = crop_and_concat(xu1, x0)
 
-        x70 = self.conv7_k(x6)
-        x71 = self.conv7_g(x6)
-
-        x70 = self.upfinal(x70)
-        x71 = self.upfinal(x71)
+        #if self.label_k in c:
+        x70 = self.conv7_k(xu1)
+        #else:
+        x71 = self.conv7_g(xu1)
 
         return x70, x71
 
 
 if __name__ == '__main__':
-    g = Generator(n_channels=3, batch_norm=False, final='tanh')
+    g = Generator(n_channels=1, batch_norm=False, final='tanh')
     #from torchsummary import summary
-    #from utils.data_utils import print_num_of_parameters
-    #print_num_of_parameters(g)
-    print(g(torch.rand(1, 3, 256, 256))[0].shape)
+    from utils.data_utils import print_num_of_parameters
+    print_num_of_parameters(g)
+
+    print(g(torch.rand(1, 1,256, 256))[0].shape)

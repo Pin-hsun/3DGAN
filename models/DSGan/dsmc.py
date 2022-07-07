@@ -15,6 +15,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from models.model_utils import get_activation
 import numpy as np
 
 sig = nn.Sigmoid()
@@ -25,27 +26,6 @@ ACTIVATION = nn.ReLU
 class Flatten(torch.nn.Module):
     def forward(self, x):
         return x.reshape(x.size()[0], -1)
-
-
-class Identity(nn.Module):
-    def forward(self, x):
-        return x
-
-
-def get_activation(fn):
-    if fn == 'none':
-        return Identity
-    elif fn == 'relu':
-        return nn.ReLU
-    elif fn == 'lrelu':
-        return nn.LeakyReLU(0.01)  # pix2pix use 0.2
-    elif fn == 'sigmoid':
-        return nn.Sigmoid
-    elif fn == 'tanh':
-        return nn.Tanh
-    else:
-        raise Exception('Unsupported activation function: ' + str(fn))
-
 
 
 def crop_and_concat(upsampled, bypass, crop=False):
@@ -187,6 +167,7 @@ class Generator(nn.Module):
         xu2 = self.up2(x5)
         cat2 = torch.cat([xu2, x1], 1)
         x6 = self.conv6(cat2)   # Dropout
+
         xu1 = self.up1(x6)
         #cat1 = crop_and_concat(xu1, x0)
 

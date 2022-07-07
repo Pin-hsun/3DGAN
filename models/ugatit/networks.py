@@ -15,8 +15,8 @@ class ResnetGenerator(nn.Module):
         self.light = light
 
         DownBlock = []
-        DownBlock += [nn.ReflectionPad2d(1),  # changed padding 3>1
-                      nn.Conv2d(input_nc, ngf, kernel_size=3, stride=1, padding=0, bias=False),  # changed kernel 7>3
+        DownBlock += [nn.ReflectionPad2d(3),  # changed padding 3>1
+                      nn.Conv2d(input_nc, ngf, kernel_size=7, stride=1, padding=0, bias=False),  # changed kernel 7>3
                       nn.InstanceNorm2d(ngf),
                       nn.ReLU(True)]
 
@@ -78,7 +78,8 @@ class ResnetGenerator(nn.Module):
         self.UpBlock2 = nn.Sequential(*UpBlock2)
 
     def forward(self, input):
-        x = self.DownBlock(input)
+        # (B, 1, 256, 256)
+        x = self.DownBlock(input)   # (B, 256, 64, 64)
 
         gap = torch.nn.functional.adaptive_avg_pool2d(x, 1)
         gap_logit = self.gap_fc(gap.view(x.shape[0], -1))
@@ -102,7 +103,6 @@ class ResnetGenerator(nn.Module):
         else:
             x_ = self.FC(x.view(x.shape[0], -1))
         gamma, beta = self.gamma(x_), self.beta(x_)
-
 
         for i in range(self.n_blocks):
             x = getattr(self, 'UpBlock1_' + str(i+1))(x, gamma, beta)

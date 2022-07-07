@@ -40,7 +40,9 @@ parser.add_argument('--direction', type=str, help='a2b or b2a')
 parser.add_argument('--flip', action='store_true', dest='flip', help='image flip left right')
 parser.add_argument('--resize', type=int, help='size for resizing before cropping, 0 for no resizing')
 parser.add_argument('--cropsize', type=int, help='size for cropping, 0 for no crop')
-parser.add_argument('--n01', action='store_true', dest='n01', default=False, help='normalized to 0~1 instead of -1~1')
+parser.add_argument('--n01', dest='n01', action='store_true')
+parser.add_argument('--n11', dest='n01', action='store_false')
+parser.set_defaults(n01=False)
 parser.add_argument('--gray', action='store_true', dest='gray', default=False, help='dont copy img to 3 channel')
 parser.add_argument('--spd', action='store_true', dest='spd', default=False)
 # Model
@@ -56,6 +58,7 @@ parser.add_argument('--ndf', type=int, help='discriminator filters in first conv
 parser.add_argument("--n_attrs", type=int, default=1)
 parser.add_argument('--final', type=str, dest='final', help='activation of final layer')
 parser.add_argument('--cmb', dest='cmb', help='method to combine the outputs to the original')
+parser.add_argument('--trd', type=float, dest='trd', help='threshold of images')
 # Training
 parser.add_argument('-b', dest='batch_size', type=int, help='training batch size')
 parser.add_argument('--test_batch_size', type=int, help='testing batch size')

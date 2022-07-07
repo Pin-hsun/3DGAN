@@ -14,7 +14,6 @@ import albumentations as A
 from albumentations.pytorch.transforms import ToTensorV2
 import tifffile as tiff
 import pandas as pd
-import random
 
 
 def to_8bit(x):
@@ -82,22 +81,61 @@ def save_segmentation(dataset, names, destination, use_t2d):
     turn images into segmentation and save it
     """
     os.makedirs(destination, exist_ok=True)
-    seg = torch.load('submodels/model_seg_ZIB_res18_256.pth').cuda()
-    t2d = torch.load('submodels/tse_dess_unet32.pth')
+    seg = torch.load('model_seg_aff.pth').cuda()
+    # t2d = torch.load('submodels/tse_dess_unet32.pth')
     seg.eval()
-    t2d.eval()
+    # t2d.eval()
+    # print(len(dataset))
     for i in range(len(dataset)):
-        x = dataset.__getitem__(i)[0].unsqueeze(0).cuda()
-        if use_t2d:
-            x = t2d(x)[0]
+        # print(names[i])
+        x = dataset.__getitem__(i)[0][0].unsqueeze(0).cuda()
+        # x = x - x.min() / x.max() - x.min()
+        x = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))(x)
+        # print('min', x.min(), 'max', x.max())
+        # if use_t2d:
+            # x = t2d(x)[0]
         out = seg(x)
-        out = torch.argmax(out, 1).squeeze().detach().cpu().numpy().astype(np.uint8)
-        tiff.imsave(destination + names[i], out)
+        out = (torch.argmax(out, 1)).squeeze().detach().cpu().numpy().astype(np.uint8)
+        # print(out.shape)
+        # out = out.squeeze().detach().cpu().numpy()
+        # print(np.unique(out))
+        out = Image.fromarray(out)
+        out.save(destination + '/' + names[i])
+        # tiff.imsave(destination + '/' + names[i], out)
 
+def split_train_test(dataset, destination):
+    from sklearn.model_selection import train_test_split
+    import shutil
+    files = glob.glob(os.environ.get('DATASET') + 't2d/t2dcheck/*')
+    id = [x.split('/')[-1].split('_')[0] for x in files]
+    id = list(set(id))
+    train_id, test_id = train_test_split(id, test_size=0.3, random_state=42)
+    train = [s.split('/')[-1] for s in files if any(xs in s for xs in train_id)]
+    test = [s.split('/')[-1] for s in files if any(xs in s for xs in test_id)]
+
+    for file in train:
+        os.makedirs(destination + 'train/a', exist_ok=True)
+        os.makedirs(destination + 'train/b', exist_ok=True)
+        a_file = os.environ.get('DATASET') + 't2d/tres/' + file
+        a_dest = destination + 'train/a/' + file
+        b_file = os.environ.get('DATASET') + 't2d/d/' + file
+        b_dest = destination + 'train/b/' + file
+        shutil.copy(a_file, a_dest)
+        shutil.copy(b_file, b_dest)
+
+    for file in test:
+        os.makedirs(destination + 'test/a', exist_ok=True)
+        os.makedirs(destination + 'test/b', exist_ok=True)
+        a_file = os.environ.get('DATASET') + 't2d/tres/' + file
+        a_dest = destination + 'test/a/' + file
+        b_file = os.environ.get('DATASET') + 't2d/d/' + file
+        b_dest = destination + 'test/b/' + file
+        shutil.copy(a_file, a_dest)
+        shutil.copy(b_file, b_dest)
 
 class MultiData(data.Dataset):
     """
-    Multiple unpaired data ccombined
+    Multiple unpaired data combined
     """
     def __init__(self, root, path, opt, mode, transforms=None, filenames=False, index=None):
         super(MultiData, self).__init__()
@@ -107,6 +145,7 @@ class MultiData(data.Dataset):
         # split the data input subsets by %
         paired_path = path.split('%')
         self.subset = []
+        print(len(paired_path))
         for p in range(len(paired_path)):
             if self.opt.bysubject:
                 self.subset.append(PairedData3D(root=root, path=paired_path[p],
@@ -114,10 +153,6 @@ class MultiData(data.Dataset):
             else:
                 self.subset.append(PairedData(root=root, path=paired_path[p],
                                               opt=opt, mode=mode, transforms=transforms, filenames=filenames, index=index))
-
-    def shuffle_images(self):
-        for set in self.subset:
-            random.shuffle(set.images)
 
     def __len__(self):
         return min([len(x) for x in self.subset])
@@ -130,12 +165,15 @@ class MultiData(data.Dataset):
                 outputs, _, filenames = self.subset[i].__getitem__(index)
                 outputs_all = outputs_all + outputs
                 filenames_all = filenames_all + filenames
-            return {'img': outputs_all, 'filenames': filenames_all}
+            return outputs_all, filenames_all
         else:
             for i in range(len(self.subset)):
-                outputs, _ = self.subset[i].__getitem__(index)
+                outputs, filenames = self.subset[i].__getitem__(index)
+                # outputs = self.subset[i].__getitem__(index)
                 outputs_all = outputs_all + outputs
-            return {'img': outputs_all}
+                filenames_all = filenames_all + filenames
+            # return outputs_all
+            return outputs_all, filenames_all
 
 
 class PairedData(data.Dataset):
@@ -148,7 +186,6 @@ class PairedData(data.Dataset):
         self.mode = mode
         self.filenames = filenames
         self.index = index
-
         self.all_path = list(os.path.join(root, x) for x in path.split('_'))
 
         # get name of images from the first folder
@@ -173,7 +210,7 @@ class PairedData(data.Dataset):
         else:
             self.transforms = transforms
 
-        if 0: # WRONG
+        if 0:
             df = pd.read_csv('notinuse/OAI00womac3.csv')
             self.labels = [(x, ) for x in df.loc[df['SIDE'] == 1, 'P01KPN#EV'].astype(np.int8)]
         else:
@@ -193,11 +230,16 @@ class PairedData(data.Dataset):
         for k in sorted(list(augmented.keys())):
             if self.opt.n01:
                 outputs = outputs + [augmented[k], ]
+            # don't normalize seg
             else:
-                if augmented[k].shape[0] == 3:
-                    outputs = outputs + [transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))(augmented[k]), ]
-                elif augmented[k].shape[0] == 1:
-                    outputs = outputs + [transforms.Normalize(0.5, 0.5)(augmented[k]), ]
+                if k == '0002' or '0003':
+                    outputs = outputs + [augmented[k], ]
+                else:
+                    print('norm')
+                    if augmented[k].shape[0] == 3:
+                        outputs = outputs + [transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))(augmented[k]), ]
+                    elif augmented[k].shape[0] == 1:
+                        outputs = outputs + [transforms.Normalize(0.5, 0.5)(augmented[k]), ]
         return outputs
 
     def load_img(self, path):
@@ -205,14 +247,8 @@ class PairedData(data.Dataset):
         x = np.array(x).astype(np.float32)
 
         #x[x <= 2] = 0
-
-        if self.opt.trd > 0:
-            x[x >= self.opt.trd] = self.opt.trd
-            x = x / self.opt.trd
-        else:
-            if x.max() > 0:  # scale to 0-1
-                x = x / x.max()
-
+        if x.max() > 5:  # scale to 0-1
+            x = x / x.max()
         if len(x.shape) == 2:  # if grayscale
             x = np.expand_dims(x, 2)
         if not self.opt.gray:
@@ -242,7 +278,8 @@ class PairedData(data.Dataset):
         if self.filenames:
             return outputs, self.labels[index], filenames
         else:
-            return outputs, self.labels[index]
+            return outputs, filenames#, self.labels[index]
+            # return outputs# , self.labels[index]
 
 
 class PairedData3D(PairedData):
@@ -298,46 +335,108 @@ class PairedData3D(PairedData):
         if self.filenames:
             return outputs, self.labels[index], filenames
         else:
-            return outputs, self.labels[index]
+            return outputs#, self.labels[index]
 
 
 class PairedDataTif(data.Dataset):
-    def __init__(self, root, directions, permute=None, crop=None):
-        self.directions = directions.split('_')
+    """
+    Multiple unpaired data ccombined
+    """
+    def __init__(self, root, opt, mode, transforms=None, filenames=False, index=None):
+        self.filenames = filenames
+        self.index = index
+        self.subjects = sorted(glob.glob(root + '*'))
+        self.opt = opt
+        self.mode = mode
 
-        self.tif = []
-        for d in self.directions:
-            if crop is not None:
-                tif = tiff.imread(os.path.join(root, d + '.tif'))[crop[0]:crop[1], crop[2]:crop[3], crop[4]:crop[5]]
+        if self.opt.resize == 0:
+            self.resize = tiff.imread(self.subjects[0]).shape[1]
+        else:
+            self.resize = self.opt.resize
+
+        if self.opt.cropsize == 0:
+            self.cropsize = self.resize
+        else:
+            self.cropsize = self.opt.cropsize
+
+        if transforms is None:
+            additional_targets = dict()
+            for i in range(1, 9999):#len(self.all_path)):
+                additional_targets[str(i).zfill(4)] = 'image'
+            self.transforms = get_transforms(crop_size=opt.cropsize,
+                                             resize=opt.resize,
+                                             additional_targets=additional_targets)[mode]
+        else:
+            self.transforms = transforms
+
+    def npy3d_to_dict(self, npy3d):
+        out = dict()
+        for i in range(npy3d.shape[0]):
+            out[str(i).zfill(4)] = npy3d[i, :, :]
+        out['image'] = out.pop('0000')  # the first image in albumentation need to be named "image"
+        return out
+
+    def get_augumentation(self, inputs):
+        outputs = []
+        augmented = self.transforms(**inputs)
+        augmented['0000'] = augmented.pop('image')  # 'change image back to 0'
+        for k in sorted(list(augmented.keys())):
+            if self.opt.n01:
+                outputs = outputs + [augmented[k], ]
             else:
-                tif = tiff.imread(os.path.join(root, d + '.tif'))
-            tif = tif.astype(np.float32)
-            tif = tif / tif.max()
-            tif = (tif * 2) - 1
-            if permute is not None:
-                tif = np.transpose(tif, permute)
-            self.tif.append(tif)
+                outputs = outputs + [transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))(augmented[k]), ]
+        return outputs
 
     def __len__(self):
-        return self.tif[0].shape[0]
+        if self.index is not None:
+            return len(self.index)
+        else:
+            return len(self.subjects)
 
     def __getitem__(self, idx):
-        outputs = []
-        for t in self.tif:
-            slice = torch.from_numpy(t[:, :]).unsqueeze(0)
-            #slice = torch.permute(slice, (0, 2, 3, 1))
-            outputs.append(slice)
-        return {'img': outputs}
+        if self.index is not None:
+            index = self.index[idx]
+        else:
+            index = idx
+
+        # load and normalize
+        npy3d = tiff.imread(self.subjects[index])
+        npy3d[npy3d >= 800] = 800
+        npy3d = npy3d / npy3d.max()
+        npy3d = npy3d.astype(np.float32)
+
+        x = self.npy3d_to_dict(npy3d)
+        x = self.get_augumentation(x)
+        x = torch.cat(x, 0)
+        x = x.permute(1, 2, 0).unsqueeze(0)
+        x = x.repeat(3, 1, 1, 1)
+
+        outputs = [x, x]
+
+        # return only images or with filenames
+        if self.filenames:
+            return outputs, self.labels[index], filenames
+        else:
+            return outputs#, self.labels[index]
+
+if 0:
+    opt.cropsize = 384
+    opt.resize = 444
+
+    p = PairedDataTif(root='/media/ghc/GHc_data2/OAI_extracted/bmlall2/Npy/SAG_IW_TSE_/',
+                      opt=opt, mode='train', transforms=None, filenames=False, index=None)
+
+    x = p.__getitem__(10)
 
 
 if __name__ == '__main__':
     from dotenv import load_dotenv
     import argparse
-    load_dotenv('env/.t09')
+    # load_dotenv('.env_eff')
 
     parser = argparse.ArgumentParser(description='pix2pix-pytorch-implementation')
     # Data
-    parser.add_argument('--dataset', type=str, default='womac3/train/')
+    parser.add_argument('--dataset', type=str, default='womac3')
     parser.add_argument('--bysubject', action='store_true', dest='bysubject', default=False)
     parser.add_argument('--direction', type=str, default='areg_b', help='a2b or b2a')
     parser.add_argument('--flip', action='store_true', dest='flip', default=False, help='image flip left right')
@@ -349,31 +448,43 @@ if __name__ == '__main__':
     parser.add_argument('--port', type=str, default='dummy')
     opt = parser.parse_args()
 
+    root = ''
+    opt.cropsize = 384
+    # opt.n01 = True
+    dataset = MultiData(root=root, path=opt.direction, opt=opt, mode='test', filenames=False)
+    # x = dataset.__getitem__(100)
+    # dataset3d = PairedData3D(root=root, path=opt.direction, opt=opt, mode='train', filenames=False)
+    # x3d = dataset3d.__getitem__(100)
+    #
+    # dataset3d = MultiData(root=root, path='areg_b_aregseg_bseg', opt=opt, mode='train', filenames=False)
+    # xm = dataset3d.__getitem__(100)
+
+    #  Dataset
+    if 1:
+        destination = 'aseg2'
+        # x = dataset.__getitem__(100)[1][1]
+        names = [x.split('/')[-1] for x in sorted(glob.glob(root + 'a/*'))]
+        save_segmentation(dataset=dataset,
+                          names=names,
+                          destination=root + destination, use_t2d=False)
+
     if 0:
-        root = os.environ.get('DATASET') + opt.dataset
-        opt.cropsize = 256
-        opt.n01 = True
-        dataset = PairedData(root=root, path=opt.direction, opt=opt, mode='train', filenames=False)
-        x = dataset.__getitem__(100)
-        dataset3d = PairedData3D(root=root, path=opt.direction, opt=opt, mode='train', filenames=False)
-        x3d = dataset3d.__getitem__(100)
+        root = os.environ.get('DATASET') + opt.dataset + '/test/'
+        source = 'aregis1/'
+        mask = 'aseg/'
+        destination = 'amask/'
+        images = [x.split('/')[-1] for x in sorted(glob.glob(root + source + '*'))]
 
-        # womac3
-        dataset = MultiData(root=root, path='areg_b_aregseg_bseg', opt=opt, mode='train', filenames=False)
-        xm = dataset3d.__getitem__(100)
+        os.makedirs(root + destination, exist_ok=True)
+        for im in images:
+            x = np.array(Image.open(root + source + im))
+            m = np.array(Image.open(root + mask + im))
+            m = (m == 1) + (m == 3)
+            masked = np.multiply(x, m)
+            tiff.imsave(root + destination + im, masked)
 
-        # fly3d
-        root = '/media/ExtHDD01/Dataset/paired_images/Fly3D/train/'
-        opt.dataset = 'Fly3D'
-        opt.n01 = False
-        opt.bysubject = True
-        dataset = MultiData(root=root, path='zyweak5_zysb5',
-                            opt=opt, mode='train', filenames=True)
+    if 0:
+        destination = '/home/pinhsun/projects/220525_OaiGan/TSE_DESS/'
+        split_train_test(opt.dataset, destination)
 
-        xm = dataset.__getitem__(5)
-
-    # fly3d tif
-    datatif = PairedDataTif(root='/media/ExtHDD01/Dataset/paired_images/Fly0B/',
-                            directions='xyzweak_xyzsb', permute=(0, 2, 1),
-                            crop=[0, 1890, 1024+512, 1024+512+32, 0, 1024])
-    x = datatif.__getitem__(0)
+# python aff_seg.py --dataset full --direction a
