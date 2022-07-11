@@ -61,7 +61,9 @@ class GAN(BaseModel):
 
         self.imgXYA = nn.Sigmoid()(self.imgXYA)  # mask
 
-        self.imgXY = combine(self.imgXYC, self.imgXYA, method='mul') + combine(self.oriX, 1 - self.imgXYA, method='mul')
+        self.imgXY = combine(self.oriY, self.imgXYA, method='mul') / 2 + \
+                     combine(self.imgXYC, self.imgXYA, method='mul') / 2 +\
+                     combine(self.oriX, 1 - self.imgXYA, method='mul')
 
         #self.imgY0 = nn.Sigmoid()(self.imgY0)  # mask
 
@@ -90,4 +92,4 @@ class GAN(BaseModel):
         loss_d = 0.5 * axy + 0.5 * ay
         return {'sum': loss_d, 'loss_d': loss_d}
 
-# CUDA_VISIBLE_DEVICES=0,1,2 python train.py --jsn womac3 --prj descar2att/descar2att/GdsattmcDugatit --mc --engine descar2att --netG dsattmc --netD ugatit  --direction areg_b --index --gray --final none --env a6k --n01
+# CUDA_VISIBLE_DEVICES=0,1 python train.py --jsn womac3 --prj descar2att/descar2attb/GdsattDugatit --engine descar2att --netG dsattmc --netD ugatit  --direction areg_b --index --gray --final none --n01

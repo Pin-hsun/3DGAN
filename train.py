@@ -110,29 +110,47 @@ if args.index:  # if use customized index
     # new index
     df = pd.read_csv(os.getenv("HOME") + '/Dropbox/TheSource/scripts/OAI_pipelines/meta/subjects_unipain_womac3.csv')
     train_index = [x for x in range(df.shape[0]) if not df['has_moaks'][x]]
-    eval_index = [x for x in range(df.shape[0]) if df['has_moaks'][x]]
+    test_index = [x for x in range(df.shape[0]) if df['has_moaks'][x]]
     # train_index = range(213, 710)
     # eval_index = range(0, 213)
 else:
     folder = '/train/'
     train_index = None
+
 train_set = Dataset(root=os.environ.get('DATASET') + args.dataset + folder,
                     path=args.direction,
                     opt=args, mode='train', index=train_index, filenames=True)
 train_loader = DataLoader(dataset=train_set, num_workers=args.threads, batch_size=args.batch_size, shuffle=True)
+
+if args.index:
+    test_set = Dataset(root=os.environ.get('DATASET') + args.dataset + folder,
+                        path=args.direction,
+                        opt=args, mode='train', index=test_index, filenames=True)
+    test_loader = DataLoader(dataset=test_set, num_workers=args.threads, batch_size=args.batch_size, shuffle=True)
+else:
+    test_loader = None
 
 #val_set = Dataset(root=os.environ.get('DATASET') + args.dataset + '/test/',
 #                  path=args.direction,
 #                  opt=args, mode='test')
 #val_loader = DataLoader(dataset=val_set, num_workers=args.threads, batch_size=args.batch_size, shuffle=False)
 
+# Logger
+if 1:
+    logger = pl_loggers.TensorBoardLogger(os.environ.get('LOGS') + args.dataset + '/', name=args.prj)
+else:
+    from pytorch_lightning.loggers.neptune import NeptuneLogger
+    logger = NeptuneLogger(
+        api_key="ANONYMOUS",
+        project="shared/pytorch-lightning-integration")
+
 # Trainer
-logger = pl_loggers.TensorBoardLogger(os.environ.get('LOGS') + args.dataset + '/', name=args.prj)
 checkpoints = os.path.join(os.environ.get('LOGS'), args.dataset, args.prj, 'checkpoints')
 os.makedirs(checkpoints, exist_ok=True)
-net = GAN(hparams=args, train_loader=train_loader, test_loader=None, checkpoints=checkpoints)
+net = GAN(hparams=args, train_loader=train_loader, test_loader=test_loader, checkpoints=checkpoints)
 trainer = pl.Trainer(gpus=-1, strategy='ddp',
-                     max_epochs=args.n_epochs, progress_bar_refresh_rate=20, logger=logger)
+                     max_epochs=args.n_epochs, progress_bar_refresh_rate=20, logger=logger,
+                     enable_checkpointing=False)
 print(args)
 trainer.fit(net, train_loader)  # test loader not used during training
 

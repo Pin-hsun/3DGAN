@@ -16,6 +16,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
+from models.model_utils import get_activation
 
 sig = nn.Sigmoid()
 ACTIVATION = nn.ReLU
@@ -30,23 +31,6 @@ class Flatten(torch.nn.Module):
 class Identity(nn.Module):
     def forward(self, x):
         return x
-
-
-def get_activation(fn):
-    if fn == 'none':
-        return Identity
-    elif fn == 'relu':
-        return nn.ReLU
-    elif fn == 'lrelu':
-        return nn.LeakyReLU(0.01)  # pix2pix use 0.2
-    elif fn == 'sigmoid':
-        return nn.Sigmoid
-    elif fn == 'tanh':
-        return nn.Tanh
-    else:
-        raise Exception('Unsupported activation function: ' + str(fn))
-
-
 
 def crop_and_concat(upsampled, bypass, crop=False):
     if crop:
@@ -96,14 +80,14 @@ def conv2d_block(in_channels, out_channels, kernel=3, stride=1, padding=1, activ
 
 
 class Generator(nn.Module):
-    def __init__(self, n_channels=1, nf=32, batch_norm=True, activation=ACTIVATION, final='tanh'):
+    def __init__(self, n_channels=1, out_channels=1, nf=32, batch_norm=True, activation=ACTIVATION, final='tanh', mc=False):
         super(Generator, self).__init__()
 
         conv_block = conv2d_bn_block if batch_norm else conv2d_block
 
         max_pool = nn.MaxPool2d(2)
         act = activation
-        self.label_k = torch.tensor([0, 1]).half().cuda()
+        self.label_k = torch.tensor([0, 1]).half()
         self.c_dim = 0
 
         self.down0 = nn.Sequential(
@@ -145,12 +129,12 @@ class Generator(nn.Module):
 
         self.conv7_k = nn.Sequential(
             conv_block(nf, nf, activation=act),
-            conv_block(nf, n_channels, activation=final_layer),
+            conv_block(nf, out_channels, activation=final_layer),
         )
 
         self.conv7_g = nn.Sequential(
             conv_block(nf, nf, activation=act),
-            conv_block(nf, n_channels, activation=final_layer),
+            conv_block(nf, out_channels, activation=final_layer),
         )
 
         #if NoTanh:
@@ -195,7 +179,7 @@ class Discriminator(nn.Module):
     def __init__(self, n_channels=6, init_filters=16, batch_norm=False):
         super(Discriminator, self).__init__()
         nf = init_filters
-        self.label_k = torch.ones(1).long().cuda()
+        self.label_k = torch.ones(1).long()
 
         conv_block = conv2d_bn_block if batch_norm else conv2d_block
 
@@ -235,21 +219,15 @@ class Discriminator(nn.Module):
 
         )
 
-    def forward(self, x, label=torch.ones(1).long().cuda()):
+    def forward(self, x, label=None):
         h = self.encoder(x)
-        if label == self.label_k:
-            out = self.conv_k(h)
-        else:
-            out = self.conv_g(h)
-        zwischen = self.conv2(h)
-
-        klasse = self.linearclass(zwischen)
-
-        return out, klasse.reshape(klasse.size(0), klasse.size(1))
+        out0 = self.conv_k(h)
+        out1 = self.conv_g(h)
+        return out0, out1
 
 
 if __name__ == '__main__':
-    g = Generator(n_channels=3, batch_norm=False, final='tanh').cuda()
+    g = Generator(n_channels=3, batch_norm=False, final='tanh')
     #from torchsummary import summary
     from utils.data_utils import print_num_of_parameters
     print_num_of_parameters(g)

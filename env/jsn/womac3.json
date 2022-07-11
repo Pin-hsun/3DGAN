@@ -5,11 +5,7 @@
             "prj": "default",
             "engine": "NS",
             "dataset": "womac3",
-            "train_index": [
-                213,
-                710,
-                1
-            ],
+            "train_index": [213, 710, 1],
             "bysubject": true,
             "direction": "areg_b",
             "flip": false,
@@ -45,13 +41,7 @@
             "legacy": false,
             "mode": "dummy",
             "port": "dummy",
-            "not_tracking_hparams": [
-                "mode",
-                "port",
-                "epoch_load",
-                "legacy",
-                "threads",
-                "test_batch_size"]
+            "not_tracking_hparams": ["mode", "port", "epoch_load", "legacy", "threads", "test_batch_size"]
         },
     "test":
         {
@@ -71,6 +61,7 @@
             "flip": false,
             "eval": false,
             "n01": true,
+            "t2d": true,
             "gray": true,
             "trd": 0,
             "cmb": "mul",

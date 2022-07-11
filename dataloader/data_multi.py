@@ -150,7 +150,6 @@ class PairedData(data.Dataset):
         self.index = index
 
         self.all_path = list(os.path.join(root, x) for x in path.split('_'))
-
         # get name of images from the first folder
         self.images = sorted([x.split('/')[-1] for x in glob.glob(self.all_path[0] + '/*')])
         if self.opt.resize == 0:

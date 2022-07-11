@@ -173,19 +173,47 @@ class BaseModel(pl.LightningModule):
         self.optimizer_d = optim.Adam(netd_parameters, lr=self.hparams.lr, betas=(self.hparams.beta1, 0.999))
         return [self.optimizer_d, self.optimizer_g], []
 
-    def add_loss_adv(self, a, net_d, coeff, truth, b=None, log=None, stacked=False):
-        if stacked:
-            fake_in = torch.cat((a, b), 1)
+    def add_loss_adv_classify3d(self, a, net_d, truth_adv, truth_classify, log=None):
+        fake_in = torch.cat((a, a), 1)
+        adv_logits, classify_logits = net_d(fake_in)
+
+        # 3D classification
+        classify_logits = nn.AdaptiveAvgPool2d(1)(classify_logits)
+        classify_logits = classify_logits.sum(0).unsqueeze(0)
+
+        if truth_adv:
+            adv = self.criterionGAN(adv_logits, torch.ones_like(adv_logits))
         else:
-            fake_in = torch.cat((a, a), 1)
-        disc_logits = net_d(fake_in)[0]
-        if truth:
-            adv = self.criterionGAN(disc_logits, torch.ones_like(disc_logits))
+            adv = self.criterionGAN(adv_logits, torch.zeros_like(adv_logits))
+
+        if truth_classify:
+            classify = self.criterionGAN(classify_logits, torch.ones_like(classify_logits))
         else:
-            adv = self.criterionGAN(disc_logits, torch.zeros_like(disc_logits))
+            classify = self.criterionGAN(classify_logits, torch.zeros_like(classify_logits))
+
         if log is not None:
             self.log(log, adv, on_step=False, on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
-        return coeff * adv
+
+        return adv, classify
+
+    def add_loss_adv_classify(self, a, net_d, truth_adv, truth_classify, log=None):
+        fake_in = torch.cat((a, a), 1)
+        adv_logits, classify_logits = net_d(fake_in)
+
+        if truth_adv:
+            adv = self.criterionGAN(adv_logits, torch.ones_like(adv_logits))
+        else:
+            adv = self.criterionGAN(adv_logits, torch.zeros_like(adv_logits))
+
+        if truth_classify:
+            classify = self.criterionGAN(classify_logits, torch.ones_like(classify_logits))
+        else:
+            classify = self.criterionGAN(classify_logits, torch.zeros_like(classify_logits))
+
+        if log is not None:
+            self.log(log, adv, on_step=False, on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
+
+        return adv, classify
 
     def add_loss_adv(self, a, net_d, coeff, truth, b=None, log=None, stacked=False):
         if stacked:
@@ -246,9 +274,9 @@ class BaseModel(pl.LightningModule):
         self.net_g_scheduler.step()
         self.net_d_scheduler.step()
 
-    #def validation_step(self, batch, batch_idx):
-    #    self.batch = batch
-    #    print('v')
+    def test_step(self, batch, batch_idx):
+        self.batch = batch
+        print('t')
 
     def generation(self):
         return 0

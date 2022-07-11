@@ -1,9 +1,7 @@
-import torch
+import torch, copy
 import torch.nn as nn
 import torchvision
 import torch.optim as optim
-from models.networks import define_G, define_D
-from models.networks import get_scheduler
 from models.loss import GANLoss
 from math import log10
 import time, os
@@ -20,19 +18,28 @@ class GAN(BaseModel):
     """
     def __init__(self, hparams, train_loader, test_loader, checkpoints):
         BaseModel.__init__(self, hparams, train_loader, test_loader, checkpoints)
-        print('using pix2pix.py')
+        self.net_dY = copy.deepcopy(self.net_d)
 
     @staticmethod
     def add_model_specific_args(parent_parser):
+        parser = parent_parser.add_argument_group("LitModel")
+        parser.add_argument("--lb1", dest='lb1', type=float, default=10)
         return parent_parser
 
-    def generation(self):
-        self.oriX = self.batch[0]
-        self.oriY = self.batch[1]
-        self.imgX0 = self.net_g(self.oriX, a=torch.zeros(self.oriX.shape[0], self.net_g_inc).cuda())[0]
-        self.imgX1 = self.net_g(self.oriX, a=torch.ones(self.oriX.shape[0], self.net_g_inc).cuda())[0]
+    def test_method(self, net_g, img):
+        self.oriX = img[0]
 
-        if self.hparams.cmb != 'none':
+        self.imgX0, self.imgX1 = net_g(self.oriX, a=None)
+        return self.imgX0
+
+    def generation(self):
+        img = self.batch['img']
+        self.oriX = img[0]
+        self.oriY = img[1]
+
+        self.imgX0, self.imgX1 = self.net_g(self.oriX, a=None)
+
+        if self.hparams.cmb is not None:
             self.imgX0 = combine(self.imgX0, self.oriX, method=self.hparams.cmb)
             self.imgX1 = combine(self.imgX1, self.oriX, method=self.hparams.cmb)
 
@@ -45,7 +52,13 @@ class GAN(BaseModel):
         loss_g += self.add_loss_L1(a=self.imgX0, b=self.oriY, coeff=self.hparams.lamb)
 
         # L1(X1, X)
-        loss_g += self.add_loss_L1(a=self.imgX1, b=self.oriX, coeff=self.hparams.lamb * 10)
+        loss_g += self.add_loss_L1(a=self.imgX1, b=self.oriX, coeff=self.hparams.lb1)
+
+        # ADV(X1)+
+        #loss_g = self.add_loss_adv(a=self.imgX1, net_d=self.net_dY, loss=loss_g, coeff=1, truth=True, stacked=False)
+
+        # L1(X0, X1)
+        #loss_g = self.add_loss_L1(a=self.imgX0, b=self.imgX1, loss=loss_g, coeff=self.hparams.lamb * 0.1)
 
         return {'sum': loss_g, 'loss_g': loss_g}
 
@@ -57,9 +70,12 @@ class GAN(BaseModel):
         # ADV(Y)+
         loss_d += self.add_loss_adv(a=self.oriY, net_d=self.net_d, coeff=0.5, truth=True)
 
+        # ADV(X1)-
+        #loss_d = self.add_loss_adv(a=self.imgX1, net_d=self.net_dY, loss=loss_d, coeff=0.5, truth=False, stacked=False)
+
+        # ADV(X)+
+        #loss_d = self.add_loss_adv(a=self.oriX, net_d=self.net_dY, loss=loss_d, coeff=0.5, truth=True)
+
         return {'sum': loss_d, 'loss_d': loss_d}
 
-# CUDA_VISIBLE_DEVICES=0 python train.py --dataset pain -b 16 --prj VryNS4 --direction aregis1_b --resize 286 --engine NS4 --netG attgan
-# CUDA_VISIBLE_DEVICES=0 python train.py --dataset womac3 -b 16 --prj NS4/r256GDatt --direction aregis1_b --resize 256 --engine NS4 --netG attgan --netD attgan
-
-# CUDA_VISIBLE_DEVICES=1 python train.py --dataset kl3 -b 16 --prj NS/unet128 --direction badKL3afterreg_goodKL3reg --resize 384 --cropsize 256 --engine pix2pixNS --netG unet_128
+# CUDA_VISIBLE_DEVICES=1 python train.py --jsn womac3 --prj mcfix/descar2/Gdescarsmc_index2_check --engine descar2 --netG descarsmc --mc --direction areg_b --index --gray
