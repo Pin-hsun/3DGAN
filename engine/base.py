@@ -74,6 +74,9 @@ class BaseModel(pl.LightningModule):
         self.hparams.update(vars(self.hparams))   # updated hparams to be logged in tensorboard
         self.train_loader.dataset.shuffle_images()
 
+        self.all_label = []
+        self.all_out = []
+
     def set_networks(self):
         # GENERATOR
         if self.hparams.netG == 'attgan':
@@ -196,14 +199,27 @@ class BaseModel(pl.LightningModule):
 
         return adv, classify
 
-    def add_loss_adv_classify(self, a, net_d, truth_adv, truth_classify, log=None):
-        fake_in = torch.cat((a, a), 1)
-        adv_logits, classify_logits = net_d(fake_in)
+    def add_loss_adv_classify3d_paired(self, a, b, net_d, truth_adv, truth_classify, log=None):
+        a_in = torch.cat((a, a), 1)
+        adv_a, classify_a = net_d(a_in)
+        b_in = torch.cat((b, b), 1)
+        adv_b, classify_b = net_d(b_in)
 
         if truth_adv:
-            adv = self.criterionGAN(adv_logits, torch.ones_like(adv_logits))
+            adv_a = self.criterionGAN(adv_a, torch.ones_like(adv_a))
+            adv_b = self.criterionGAN(adv_b, torch.ones_like(adv_b))
         else:
-            adv = self.criterionGAN(adv_logits, torch.zeros_like(adv_logits))
+            adv_a = self.criterionGAN(adv_a, torch.zeros_like(adv_a))
+            adv_b = self.criterionGAN(adv_b, torch.zeros_like(adv_b))
+
+        if truth_classify:
+            classify_logits = classify_a - classify_b
+        else:
+            classify_logits = classify_b - classify_a
+
+        # 3D classification
+        classify_logits = nn.AdaptiveAvgPool2d(1)(classify_logits)
+        classify_logits = classify_logits.sum(0).unsqueeze(0)
 
         if truth_classify:
             classify = self.criterionGAN(classify_logits, torch.ones_like(classify_logits))
@@ -213,7 +229,8 @@ class BaseModel(pl.LightningModule):
         if log is not None:
             self.log(log, adv, on_step=False, on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
 
-        return adv, classify
+        return adv_a, adv_b, classify
+
 
     def add_loss_adv(self, a, net_d, coeff, truth, b=None, log=None, stacked=False):
         if stacked:
@@ -274,9 +291,64 @@ class BaseModel(pl.LightningModule):
         self.net_g_scheduler.step()
         self.net_d_scheduler.step()
 
-    def test_step(self, batch, batch_idx):
+        self.all_label = []
+        self.all_out = []
+
+    def validation_step(self, batch, batch_idx):
         self.batch = batch
-        print('t')
+        if self.hparams.bysubject:  # if working on 3D input
+            if len(self.batch['img'][0].shape) == 5:
+                for i in range(len(self.batch['img'])):
+                    (B, C, H, W, Z) = self.batch['img'][i].shape
+                    self.batch['img'][i] = self.batch['img'][i].permute(0, 4, 1, 2, 3)
+                    self.batch['img'][i] = self.batch['img'][i].reshape(B * Z, C, H, W)
+        img = self.batch['img']
+        self.oriX = img[0]
+        self.oriY = img[1]
+
+        net_d = self.net_d
+        # cx
+        a = self.oriX
+        fake_in = torch.cat((a, a), 1)
+        _, classify_logits = net_d(fake_in)
+        classify_logits = nn.AdaptiveAvgPool2d(1)(classify_logits)
+        classify_logits = classify_logits.sum(0).unsqueeze(0)
+        cx = self.criterionGAN(classify_logits, torch.ones_like(classify_logits))
+        lx = classify_logits[:, :, 0, 0]
+        # cy
+        a = self.oriY
+        fake_in = torch.cat((a, a), 1)
+        _, classify_logits = net_d(fake_in)
+        classify_logits = nn.AdaptiveAvgPool2d(1)(classify_logits)
+        classify_logits = classify_logits.sum(0).unsqueeze(0)
+        cy = self.criterionGAN(classify_logits, torch.zeros_like(classify_logits))
+        ly = classify_logits[:, :, 0, 0]
+
+        loss_dc = 0.5 * cx + 0.5 * cy # + (cxy + cxx + cyy + cyx) * 0.5
+        self.log('valdc', loss_dc, on_step=False, on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
+
+        # metrics
+        flip = np.random.randint(2)
+        if flip:
+            label = torch.ones(1).type(torch.LongTensor)
+            out = torch.cat([ly, lx], 1)
+        else:
+            label = torch.zeros(1).type(torch.LongTensor)
+            out = torch.cat([lx, ly], 1)
+
+        self.all_label.append(label)
+        self.all_out.append(out.cpu().detach())
+        return loss_dc
+
+    def validation_epoch_end(self, x):
+        all_out = torch.cat(self.all_out, 0)
+        all_label = torch.cat(self.all_label, 0)
+        metrics = GetAUC()(all_label, all_out)
+
+        auc = torch.from_numpy(np.array(metrics)).cuda()
+        for i in range(len(auc)):
+            self.log('auc' + str(i), auc[i], on_step=False, on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
+        return metrics
 
     def generation(self):
         return 0
@@ -288,3 +360,5 @@ class BaseModel(pl.LightningModule):
         return 0
 
 # CUDA_VISIBLE_DEVICES=2 python train.py --dataset womac3 -b 16 --prj NS/unet128 --direction aregis1_b --cropsize 256 --engine pix2pixNS --netG unet_128
+
+

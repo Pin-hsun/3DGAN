@@ -10,6 +10,7 @@ from utils.metrics_segmentation import SegmentationCrossEntropyLoss
 from utils.metrics_classification import CrossEntropyLoss, GetAUC
 from utils.data_utils import *
 from engine.base import BaseModel, combine
+import pandas as pd
 
 
 class GAN(BaseModel):
@@ -23,6 +24,8 @@ class GAN(BaseModel):
         # save model names
         self.netg_names = {'net_g': 'netG'}
         self.netd_names = {'net_d': 'netD'}#, 'net_class': 'netDC'}
+
+        self.df = pd.read_csv(os.getenv("HOME") + '/Dropbox/TheSource/scripts/OAI_pipelines/meta/subjects_unipain_womac3.csv')
 
     @staticmethod
     def add_model_specific_args(parent_parser):
@@ -40,6 +43,7 @@ class GAN(BaseModel):
 
     def generation(self):
         img = self.batch['img']
+        self.filenames = self.batch['filenames']
         self.oriX = img[0]
         self.oriY = img[1]
 
@@ -53,7 +57,7 @@ class GAN(BaseModel):
 
     def backward_g(self, inputs):
         # ADV(XY)+ -
-        axy, cxy = self.add_loss_adv_classify3d(a=self.imgXY, net_d=self.net_d, truth_adv=True, truth_classify=False)
+        axy, _ = self.add_loss_adv_classify3d(a=self.imgXY, net_d=self.net_d, truth_adv=True, truth_classify=False)
 
         # ADV(XX)+ +
         #axx, cxx = self.add_loss_adv_classify(a=self.imgXX, net_d=self.net_d, truth_adv=True, truth_classify=True)
@@ -77,8 +81,10 @@ class GAN(BaseModel):
         return {'sum': loss_g, 'loss_g': loss_g}
 
     def backward_d(self, inputs):
+        id = self.filenames[0][0].split('/')[-1].split('_')[0]
+        side = self.df.loc[self.df['ID'] == int(id), ['SIDE']].values[0][0]
         # ADV(XY)- -
-        axy, cxy = self.add_loss_adv_classify3d(a=self.imgXY, net_d=self.net_d, truth_adv=False, truth_classify=False)
+        axy, _ = self.add_loss_adv_classify3d(a=self.imgXY, net_d=self.net_d, truth_adv=False, truth_classify=False)
         # ADV(XX)- +
         #axx, cxx = self.add_loss_adv_classify(a=self.imgXX, net_d=self.net_d, truth_adv=False, truth_classify=True)
         # ADV(YY)- -
@@ -87,12 +93,16 @@ class GAN(BaseModel):
         #ayx, cyx = self.add_loss_adv_classify(a=self.imgYX, net_d=self.net_d, truth_adv=False, truth_classify=True)
 
         # ADV(X)+ +
-        ax, cx = self.add_loss_adv_classify3d(a=self.oriX, net_d=self.net_d, truth_adv=True, truth_classify=True)
+        #ax, cx = self.add_loss_adv_classify3d(a=self.oriX, net_d=self.net_d, truth_adv=True, truth_classify=True)
         # ADV(Y)+ -
-        ay, cy = self.add_loss_adv_classify3d(a=self.oriY, net_d=self.net_d, truth_adv=True, truth_classify=False)
+        #ay, cy = self.add_loss_adv_classify3d(a=self.oriY, net_d=self.net_d, truth_adv=True, truth_classify=False)
+        truth_classify = (side == 'RIGHT')
+        ax, ay, cxy = self.add_loss_adv_classify3d_paired(a=self.oriX, b=self.oriY, net_d=self.net_d,
+                                                     truth_adv=True, truth_classify=truth_classify)
 
         loss_da = axy * 0.5 + ay * 0.5
-        loss_dc = 0.5 * cx + 0.5 * cy # + (cxy + cxx + cyy + cyx) * 0.5
+        #loss_dc = 0.5 * cx + 0.5 * cy # + (cxy + cxx + cyy + cyx) * 0.5
+        loss_dc = cxy
         loss_d = loss_da + loss_dc
 
         self.log('da', loss_da, on_step=False, on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
@@ -100,4 +110,4 @@ class GAN(BaseModel):
         return {'sum': loss_d, 'loss_d': loss_d}
 
 
-# CUDA_VISIBLE_DEVICES=0,1 python train.py --jsn womac3 --prj Gds/descar23d/Gdsmc3D --mc --engine descar23db --netG dsmc --netD descar --direction areg_b --index --gray --bysubject --final none
+# CUDA_VISIBLE_DEVICES=0,1,2 python train.py --jsn womac3 --prj Gds/descar3/Gdsmc3DB --mc --engine descar3 --netG dsmc --netD descar --direction areg_b --index --gray --bysubject --final none

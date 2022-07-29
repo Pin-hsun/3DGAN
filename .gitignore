@@ -11,6 +11,8 @@ __pycache__/
 *.png
 *.csv
 
+postprocessing/
+
 # C extensions
 *.so
 

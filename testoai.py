@@ -171,7 +171,7 @@ class Pix2PixModel:
                 input.append(temp)
         else:
             input = input_ori
-
+        print(self.args.t2d)
         if self.args.t2d:
             input = list(map(lambda k: list(map(lambda v: self.get_t2d(v), k)), input))  # (3, 256, 256) (-1, 1)
         list_seg = list(map(lambda k: list(map(lambda v: self.get_seg(v), k)), input))
@@ -268,7 +268,7 @@ for epoch in range(*args.nepochs):
     test_unit.get_model(epoch, eval=args.eval)
 
     if args.all:
-        iirange = range(500)#range(len(test_unit.test_set))
+        iirange = range(len(test_unit.test_set))
     else:
         iirange = range(1)
 
@@ -323,14 +323,17 @@ for epoch in range(*args.nepochs):
         a = test_unit.get_all_seg([combinedall])[0]
 
         # Segmentation
-        tag = False
-        diffseg0 = seperate_by_seg(x=diffall, seg_used=a, masked=[0, 2, 4], if_absolute=True)
-        diffseg1 = seperate_by_seg(x=diffall, seg_used=a, masked=[1, 3], if_absolute=True)
-        diffvar0 = seperate_by_seg(x=diffvar, seg_used=a, masked=[0, 2, 4], if_absolute=False)
-        diffvar1 = seperate_by_seg(x=diffvar, seg_used=a, masked=[1, 3], if_absolute=False)
+        mask_bone = [0, 1, 2, 3]#[0, 2, 4]
+        mask_eff = [1, 3]
 
-        outputsig0 = seperate_by_seg(x=outputsig, seg_used=a, masked=[0, 2, 4], if_absolute=tag)
-        outputsig1 = seperate_by_seg(x=outputsig, seg_used=a, masked=[1, 3], if_absolute=tag)
+        tag = False
+        diffseg0 = seperate_by_seg(x=diffall, seg_used=a, masked=mask_bone, if_absolute=True)
+        diffseg1 = seperate_by_seg(x=diffall, seg_used=a, masked=mask_eff, if_absolute=True)
+        diffvar0 = seperate_by_seg(x=diffvar, seg_used=a, masked=mask_bone, if_absolute=False)
+        diffvar1 = seperate_by_seg(x=diffvar, seg_used=a, masked=mask_eff, if_absolute=False)
+
+        outputsig0 = seperate_by_seg(x=outputsig, seg_used=a, masked=mask_bone, if_absolute=tag)
+        outputsig1 = seperate_by_seg(x=outputsig, seg_used=a, masked=mask_eff, if_absolute=tag)
 
         # significance
         diffsig0 = []
@@ -376,5 +379,5 @@ for epoch in range(*args.nepochs):
 
 
 # USAGE
-# CUDA_VISIBLE_DEVICES=1 python testoai.py --jsn womac3 --direction a_b --prj Gds/NS/Gdsmc --cropsize 384 --n01 --cmb mul --gray --nepochs 100 101 20 --nalpha 0 20 20
+# CUDA_VISIBLE_DEVICES=1 python testoai.py --jsn womac3 --direction a_b --prj Gds/descar2/Gdsmc --engine descar2 --cropsize 384 --n01 --cmb mul --gray --nepochs 80 81 20 --nalpha 0 20 20
 

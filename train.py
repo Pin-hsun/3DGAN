@@ -104,6 +104,7 @@ args = prepare_log(args)
 from dataloader.data_multi import MultiData as Dataset
 
 # Load Dataset and DataLoader
+# THIS IS TRASH. I WAS TRYING TO SPLIT OAI DATA ON THE FLY
 if args.index:  # if use customized index
     folder = '/full/'
     # train_index = range(*args.train_index)
@@ -126,7 +127,7 @@ if args.index:
     test_set = Dataset(root=os.environ.get('DATASET') + args.dataset + folder,
                         path=args.direction,
                         opt=args, mode='train', index=test_index, filenames=True)
-    test_loader = DataLoader(dataset=test_set, num_workers=args.threads, batch_size=args.batch_size, shuffle=True)
+    test_loader = DataLoader(dataset=test_set, num_workers=args.threads, batch_size=args.batch_size, shuffle=False)
 else:
     test_loader = None
 
@@ -152,7 +153,7 @@ trainer = pl.Trainer(gpus=-1, strategy='ddp',
                      max_epochs=args.n_epochs, progress_bar_refresh_rate=20, logger=logger,
                      enable_checkpointing=False)
 print(args)
-trainer.fit(net, train_loader)  # test loader not used during training
+trainer.fit(net, train_loader, test_loader)  # test loader not used during training
 
 
 # Example Usage
