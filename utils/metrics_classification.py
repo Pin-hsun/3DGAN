@@ -104,7 +104,7 @@ class GetAUC(nn.Module):
 
     def forward(self, all_label, all_out):
         auc = []
-        for n in range(1, all_out.shape[1]):
+        for n in range(0, all_out.shape[1]):
             fpr, tpr, thresholds = metrics.roc_curve(all_label, all_out[:, n], pos_label=n)
             auc.append(metrics.auc(fpr, tpr))
 

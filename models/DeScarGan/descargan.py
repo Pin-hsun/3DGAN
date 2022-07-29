@@ -223,7 +223,7 @@ class Discriminator(nn.Module):
         h = self.encoder(x)
         out0 = self.conv_k(h)
         out1 = self.conv_g(h)
-        return out0, out1
+        return out0, h #out1
 
 
 if __name__ == '__main__':

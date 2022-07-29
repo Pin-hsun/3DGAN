@@ -323,7 +323,7 @@ for epoch in range(*args.nepochs):
         a = test_unit.get_all_seg([combinedall])[0]
 
         # Segmentation
-        mask_bone = [0, 1, 2, 3]#[0, 2, 4]
+        mask_bone = [0, 2, 4]
         mask_eff = [1, 3]
 
         tag = False

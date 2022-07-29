@@ -21,9 +21,11 @@ class GAN(BaseModel):
         BaseModel.__init__(self, hparams, train_loader, test_loader, checkpoints)
         #self.net_class = copy.deepcopy(self.net_d)
 
+        self.classifier = nn.Conv2d(256, 1, 1, stride=1, padding=0).cuda()
+
         # save model names
         self.netg_names = {'net_g': 'netG'}
-        self.netd_names = {'net_d': 'netD'}#, 'net_class': 'netDC'}
+        self.netd_names = {'net_d': 'netD', 'classifier': 'classifier'}#, 'net_class': 'netDC'}
 
         self.df = pd.read_csv(os.getenv("HOME") + '/Dropbox/TheSource/scripts/OAI_pipelines/meta/subjects_unipain_womac3.csv')
 
@@ -97,7 +99,7 @@ class GAN(BaseModel):
         # ADV(Y)+ -
         #ay, cy = self.add_loss_adv_classify3d(a=self.oriY, net_d=self.net_d, truth_adv=True, truth_classify=False)
         truth_classify = (side == 'RIGHT')
-        ax, ay, cxy = self.add_loss_adv_classify3d_paired(a=self.oriX, b=self.oriY, net_d=self.net_d,
+        ax, ay, cxy, _ = self.add_loss_adv_classify3d_paired(a=self.oriX, b=self.oriY, net_d=self.net_d, classifier=self.classifier,
                                                      truth_adv=True, truth_classify=truth_classify)
 
         loss_da = axy * 0.5 + ay * 0.5
@@ -108,6 +110,50 @@ class GAN(BaseModel):
         self.log('da', loss_da, on_step=False, on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
         self.log('dc', loss_dc, on_step=False, on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
         return {'sum': loss_d, 'loss_d': loss_d}
+
+    def validation_step(self, batch, batch_idx):
+        self.batch = batch
+        if self.hparams.bysubject:  # if working on 3D input
+            if len(self.batch['img'][0].shape) == 5:
+                for i in range(len(self.batch['img'])):
+                    (B, C, H, W, Z) = self.batch['img'][i].shape
+                    self.batch['img'][i] = self.batch['img'][i].permute(0, 4, 1, 2, 3)
+                    self.batch['img'][i] = self.batch['img'][i].reshape(B * Z, C, H, W)
+
+        img = self.batch['img']
+        self.filenames = self.batch['filenames']
+        self.oriX = img[0]
+        self.oriY = img[1]
+        net_d = self.net_d
+
+        #
+        id = self.filenames[0][0].split('/')[-1].split('_')[0]
+        side = self.df.loc[self.df['ID'] == int(id), ['SIDE']].values[0][0]
+
+        truth_classify = (side == 'RIGHT')
+        ax, ay, cxy, lxy = self.add_loss_adv_classify3d_paired(a=self.oriX, b=self.oriY, net_d=self.net_d, classifier=self.classifier,
+                                                     truth_adv=True, truth_classify=truth_classify)
+        loss_dc = cxy
+
+        if truth_classify:
+            label = torch.zeros(1).type(torch.LongTensor)
+        else:
+            label = torch.ones(1).type(torch.LongTensor)
+        out = lxy[:, :, 0, 0]
+
+        self.all_label.append(label)
+        self.all_out.append(out.cpu().detach())
+        return loss_dc
+
+    def validation_epoch_end(self, x):
+        all_out = torch.cat(self.all_out, 0)
+        all_label = torch.cat(self.all_label, 0)
+        metrics = GetAUC()(all_label, all_out)
+
+        auc = torch.from_numpy(np.array(metrics)).cuda()
+        for i in range(len(auc)):
+            self.log('auc' + str(i), auc[i], on_step=False, on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
+        return metrics
 
 
 # CUDA_VISIBLE_DEVICES=0,1,2 python train.py --jsn womac3 --prj Gds/descar3/Gdsmc3DB --mc --engine descar3 --netG dsmc --netD descar --direction areg_b --index --gray --bysubject --final none
