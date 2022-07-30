@@ -1,0 +1,7 @@
+pwd# Paths
+export LOGS='/home/ubuntu/OAI/logs/'
+export DATASET='/home/ubuntu/OAI/data/'
+
+# Submodels
+export model_t2d='submodels/netG_TSE_DESS_up256patchgan.pth'
+export model_seg='submodels/SegScale.pth'
