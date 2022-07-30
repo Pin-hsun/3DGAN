@@ -9,7 +9,6 @@ __pycache__/
 *.tif
 *.pth
 *.png
-*.csv
 
 postprocessing/
 
