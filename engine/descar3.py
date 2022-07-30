@@ -27,7 +27,9 @@ class GAN(BaseModel):
         self.netg_names = {'net_g': 'netG'}
         self.netd_names = {'net_d': 'netD', 'classifier': 'classifier'}#, 'net_class': 'netDC'}
 
-        self.df = pd.read_csv(os.getenv("HOME") + '/Dropbox/TheSource/scripts/OAI_pipelines/meta/subjects_unipain_womac3.csv')
+        #self.df = pd.read_csv(os.getenv("HOME") + '/Dropbox/TheSource/scripts/OAI_pipelines/meta/subjects_unipain_womac3.csv')
+
+        self.df = pd.read_csv('env/subjects_unipain_womac3.csv')
 
     @staticmethod
     def add_model_specific_args(parent_parser):
