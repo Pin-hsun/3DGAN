@@ -110,7 +110,7 @@ if args.index:  # if use customized index
     # train_index = range(*args.train_index)
     # new index
     #df = pd.read_csv(os.getenv("HOME") + '/Dropbox/TheSource/scripts/OAI_pipelines/meta/subjects_unipain_womac3.csv')
-    df = pd.read_csv('subjects_unipain_womac3.csv')
+    df = pd.read_csv('env/subjects_unipain_womac3.csv')
     train_index = [x for x in range(df.shape[0]) if not df['has_moaks'][x]]
     test_index = [x for x in range(df.shape[0]) if df['has_moaks'][x]]
     # train_index = range(213, 710)
