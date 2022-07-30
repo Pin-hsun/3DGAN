@@ -131,6 +131,9 @@ class BaseModel(pl.LightningModule):
         if (self.hparams.netD).startswith('patch'):  # Patchgan from cyclegan (the pix2pix one is strange)
             from models.cyclegan.models import Discriminator
             self.net_d = Discriminator(input_shape=(self.hparams.output_nc * 2, 256, 256), patch=int((self.hparams.netD).split('_')[-1]))
+        elif (self.hparams.netD).startswith('bpatch'):  # Patchgan from cyclegan (the pix2pix one is strange)
+            from models.cyclegan.modelsb import Discriminator
+            self.net_d = Discriminator(input_shape=(self.hparams.output_nc * 2, 256, 256), patch=int((self.hparams.netD).split('_')[-1]))
         elif self.hparams.netD == 'sagan':
             from models.sagan.sagan import Discriminator
             print('use sagan discriminator')

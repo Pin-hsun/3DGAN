@@ -134,15 +134,17 @@ class GAN(BaseModel):
         ax, ay, cxy, lxy = self.add_loss_adv_classify3d_paired(a=self.oriX, b=self.oriY, net_d=self.net_d, classifier=self.classifier,
                                                      truth_adv=True, truth_classify=truth_classify)
         loss_dc = cxy
+        self.log('valdc', loss_dc, on_step=False, on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
 
+        # AUC metrics
         if truth_classify:
             label = torch.zeros(1).type(torch.LongTensor)
         else:
             label = torch.ones(1).type(torch.LongTensor)
         out = lxy[:, :, 0, 0]
-
         self.all_label.append(label)
         self.all_out.append(out.cpu().detach())
+
         return loss_dc
 
     def validation_epoch_end(self, x):

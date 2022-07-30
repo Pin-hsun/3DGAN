@@ -12,6 +12,7 @@
             "resize": 0,
             "cropsize": 256,
             "n01": true,
+            "gray": true,
             "trd": 0,
             "gan_mode": "vanilla",
             "netG": "descars",
