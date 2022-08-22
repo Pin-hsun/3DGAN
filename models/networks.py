@@ -598,7 +598,7 @@ class PixelDiscriminator(nn.Module):
 
 
 if __name__ == '__main__':
-    r = define_G(input_nc=3, output_nc=3, ngf=32, netG='resnet_6blocks', norm='batch', use_dropout=False, final='tanh')
+    r = define_G(input_nc=3, output_nc=3, ngf=32, netG='resnet_6blocks', norm='batch', use_dropout=False, final='sigmoid')
     u = define_G(input_nc=3, output_nc=3, ngf=32, netG='unet_128', norm='instance', use_dropout=False, final='sigmoid')
     #g = UnetGenerator(input_nc=3, output_nc=3, num_downs=8, ngf=64, norm_layer=nn.BatchNorm2d,
     #                                use_dropout=True, final='sigmoid').cuda()

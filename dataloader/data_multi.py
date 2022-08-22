@@ -47,6 +47,7 @@ def imagesc(x, show=True, save=None):
 
 
 def separate_subjects_n_slices(img_list):
+    "for knee project"
     temp = [x.split('.')[0].split('_') for x in img_list]
     subject = dict()
     for y in temp:
@@ -77,29 +78,11 @@ def get_transforms(crop_size, resize, additional_targets, need=('train', 'test')
     return transformations
 
 
-def save_segmentation(dataset, names, destination, use_t2d):
-    """
-    turn images into segmentation and save it
-    """
-    os.makedirs(destination, exist_ok=True)
-    seg = torch.load('submodels/model_seg_ZIB_res18_256.pth').cuda()
-    t2d = torch.load('submodels/tse_dess_unet32.pth')
-    seg.eval()
-    t2d.eval()
-    for i in range(len(dataset)):
-        x = dataset.__getitem__(i)[0].unsqueeze(0).cuda()
-        if use_t2d:
-            x = t2d(x)[0]
-        out = seg(x)
-        out = torch.argmax(out, 1).squeeze().detach().cpu().numpy().astype(np.uint8)
-        tiff.imsave(destination + names[i], out)
-
-
 class MultiData(data.Dataset):
     """
-    Multiple unpaired data ccombined
+    Multiple unpaired data combined
     """
-    def __init__(self, root, path, opt, mode, transforms=None, filenames=False, index=None):
+    def __init__(self, root, path, opt, mode, labels=None, transforms=None, filenames=False, index=None):
         super(MultiData, self).__init__()
         self.opt = opt
         self.mode = mode
@@ -110,10 +93,10 @@ class MultiData(data.Dataset):
         for p in range(len(paired_path)):
             if self.opt.bysubject:
                 self.subset.append(PairedData3D(root=root, path=paired_path[p],
-                                                opt=opt, mode=mode, transforms=transforms, filenames=filenames, index=index))
+                                                opt=opt, mode=mode, labels=labels, transforms=transforms, filenames=filenames, index=index))
             else:
                 self.subset.append(PairedData(root=root, path=paired_path[p],
-                                              opt=opt, mode=mode, transforms=transforms, filenames=filenames, index=index))
+                                              opt=opt, mode=mode, labels=labels, transforms=transforms, filenames=filenames, index=index))
 
     def shuffle_images(self):
         for set in self.subset:
@@ -142,7 +125,7 @@ class PairedData(data.Dataset):
     """
     Paired images with the same file name from different folders
     """
-    def __init__(self, root, path, opt, mode, transforms=None, filenames=False, index=None):
+    def __init__(self, root, path, opt, mode, labels=None, transforms=None, filenames=False, index=None):
         super(PairedData, self).__init__()
         self.opt = opt
         self.mode = mode
@@ -172,11 +155,10 @@ class PairedData(data.Dataset):
         else:
             self.transforms = transforms
 
-        if 0: # WRONG
-            df = pd.read_csv('notinuse/OAI00womac3.csv')
-            self.labels = [(x, ) for x in df.loc[df['SIDE'] == 1, 'P01KPN#EV'].astype(np.int8)]
+        if labels is None:
+            self.labels = [0] * len(self.images)  # WRONG, label is not added yet
         else:
-            self.labels = [0] * len(self.images)  ## WRONG
+            self.labels = labels
 
     def load_to_dict(self, names):
         out = dict()
@@ -202,8 +184,6 @@ class PairedData(data.Dataset):
     def load_img(self, path):
         x = Image.open(path)
         x = np.array(x).astype(np.float32)
-
-        #x[x <= 2] = 0
 
         if self.opt.trd > 0:
             x[x >= self.opt.trd] = self.opt.trd
@@ -246,10 +226,10 @@ class PairedData(data.Dataset):
 
 class PairedData3D(PairedData):
     """
-    Multiple unpaired data ccombined
+    Multiple unpaired data combined
     """
-    def __init__(self, root, path, opt, mode, transforms=None, filenames=False, index=None):
-        super(PairedData3D, self).__init__(root, path, opt, mode, transforms=transforms, filenames=filenames, index=index)
+    def __init__(self, root, path, opt, mode, labels=None, transforms=None, filenames=False, index=None):
+        super(PairedData3D, self).__init__(root, path, opt, mode, labels=labels, transforms=transforms, filenames=filenames, index=index)
         self.filenames = filenames
         self.index = index
 
@@ -342,6 +322,7 @@ if __name__ == '__main__':
     parser.add_argument('--flip', action='store_true', dest='flip', default=False, help='image flip left right')
     parser.add_argument('--resize', type=int, default=0)
     parser.add_argument('--cropsize', type=int, default=0)
+    parser.add_argument('--trd', type=float, default=0)
     parser.add_argument('--n01', action='store_true', dest='n01', default=False)
     parser.add_argument('--gray', action='store_true', dest='gray', default=False, help='only use 1 channel')
     parser.add_argument('--mode', type=str, default='dummy')
@@ -361,18 +342,19 @@ if __name__ == '__main__':
         dataset = MultiData(root=root, path='areg_b_aregseg_bseg', opt=opt, mode='train', filenames=False)
         xm = dataset3d.__getitem__(100)
 
+    if 1:
         # fly3d
-        root = '/media/ExtHDD01/Dataset/paired_images/Fly3D/train/'
-        opt.dataset = 'Fly3D'
+        root = '/media/ExtHDD01/Dataset/paired_images/Fly3D/train/' # change to your data root
         opt.n01 = False
         opt.bysubject = True
-        dataset = MultiData(root=root, path='zyweak5_zysb5',
+        dataset = MultiData(root=root, path='xyweak_xysb',
                             opt=opt, mode='train', filenames=True)
 
         xm = dataset.__getitem__(5)
 
     # fly3d tif
-    datatif = PairedDataTif(root='/media/ExtHDD01/Dataset/paired_images/Fly0B/',
-                            directions='xyzweak_xyzsb', permute=(0, 2, 1),
-                            crop=[0, 1890, 1024+512, 1024+512+32, 0, 1024])
-    x = datatif.__getitem__(0)
+    if 0:
+        datatif = PairedDataTif(root='/media/ExtHDD01/Dataset/paired_images/Fly0B/',
+                                directions='xyzweak_xyzsb', permute=(0, 2, 1),
+                                crop=[0, 1890, 1024+512, 1024+512+32, 0, 1024])
+        x = datatif.__getitem__(0)

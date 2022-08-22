@@ -59,6 +59,14 @@ class GAN(BaseModel):
         self.imgXY = combine(self.imgXY, self.oriX, method='mul')
         #self.imgYY = combine(self.imgYY, self.oriY, method='mul')
 
+        self.imgYY, self.imgYX = self.net_g(self.oriY, a=None)
+        #self.imgYY, self.imgYX = self.net_g(self.oriY, a=None)
+
+        self.imgYY = nn.Sigmoid()(self.imgYY)  # mask
+        #self.imgYY = nn.Sigmoid()(self.imgYY)  # mask
+        self.imgYY = combine(self.imgYY, self.oriY, method='mul')
+        #self.imgYY = combine(self.imgYY, self.oriY, method='mul')
+
     def backward_g(self, inputs):
         # ADV(XY)+ -
         axy, _ = self.add_loss_adv_classify3d(a=self.imgXY, net_d=self.net_d, truth_adv=True, truth_classify=False)
@@ -101,7 +109,7 @@ class GAN(BaseModel):
         # ADV(Y)+ -
         #ay, cy = self.add_loss_adv_classify3d(a=self.oriY, net_d=self.net_d, truth_adv=True, truth_classify=False)
         truth_classify = (side == 'RIGHT')
-        ax, ay, cxy, _ = self.add_loss_adv_classify3d_paired(a=self.oriX, b=self.oriY, net_d=self.net_d, classifier=self.classifier,
+        ax, ay, cxy, _ = self.add_loss_adv_classify3d_paired2(a=self.oriX, b=self.oriY, a2=self.imgXY, b2=self.imgYY, net_d=self.net_d, classifier=self.classifier,
                                                              truth_adv=True, truth_classify=truth_classify)
 
         loss_da = axy * 0.5 + ay * 0.5
@@ -158,98 +166,6 @@ class GAN(BaseModel):
             self.log('auc' + str(i), auc[i], on_step=False, on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
         return metrics
 
-    def add_loss_adv_classify3d(self, a, net_d, truth_adv, truth_classify, log=None):
-        fake_in = torch.cat((a, a), 1)
-        adv_logits, classify_logits = net_d(fake_in)
-
-        # 3D classification
-        classify_logits = nn.AdaptiveAvgPool2d(1)(classify_logits)
-        classify_logits = classify_logits.sum(0).unsqueeze(0)
-
-        if truth_adv:
-            adv = self.criterionGAN(adv_logits, torch.ones_like(adv_logits))
-        else:
-            adv = self.criterionGAN(adv_logits, torch.zeros_like(adv_logits))
-
-        if truth_classify:
-            classify = self.criterionGAN(classify_logits, torch.ones_like(classify_logits))
-        else:
-            classify = self.criterionGAN(classify_logits, torch.zeros_like(classify_logits))
-
-        if log is not None:
-            self.log(log, adv, on_step=False, on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
-
-        return adv, classify
-
-    def add_loss_adv_classify3d_paired(self, a, b, net_d, classifier, truth_adv, truth_classify, log=None):
-        a_in = torch.cat((a, a), 1)
-        adv_a, classify_a = net_d(a_in)
-        b_in = torch.cat((b, b), 1)
-        adv_b, classify_b = net_d(b_in)
-
-        if truth_adv:
-            adv_a = self.criterionGAN(adv_a, torch.ones_like(adv_a))
-            adv_b = self.criterionGAN(adv_b, torch.ones_like(adv_b))
-        else:
-            adv_a = self.criterionGAN(adv_a, torch.zeros_like(adv_a))
-            adv_b = self.criterionGAN(adv_b, torch.zeros_like(adv_b))
-
-        if truth_classify:
-            classify_logits = nn.AdaptiveAvgPool2d(1)(classify_a - classify_b)
-        else:
-            classify_logits = nn.AdaptiveAvgPool2d(1)(classify_b - classify_a)
-
-        classify_logits, _ = torch.max(classify_logits, 0)
-        classify_logits = classify_logits.unsqueeze(0)
-        classify_logits = classifier(classify_logits)
-
-        if truth_classify:
-            classify = self.criterionGAN(classify_logits, torch.ones_like(classify_logits))
-        else:
-            classify = self.criterionGAN(classify_logits, torch.zeros_like(classify_logits))
-
-        if log is not None:
-            self.log(log, adv, on_step=False, on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
-
-        return adv_a, adv_b, classify, classify_logits
-
-    def add_loss_adv_classify3d_paired2(self, a, b, a2, b2, net_d, classifier, truth_adv, truth_classify, log=None):
-        a_in = torch.cat((a, a), 1)
-        adv_a, classify_a = net_d(a_in)
-        b_in = torch.cat((b, b), 1)
-        adv_b, classify_b = net_d(b_in)
-
-        a2_in = torch.cat((a2, a2), 1)
-        adv_a2, classify_a2 = net_d(a2_in)
-        b2_in = torch.cat((b2, b2), 1)
-        adv_b2, classify_b2 = net_d(b2_in)
-
-        if truth_adv:
-            adv_a = self.criterionGAN(adv_a, torch.ones_like(adv_a))
-            adv_b = self.criterionGAN(adv_b, torch.ones_like(adv_b))
-        else:
-            adv_a = self.criterionGAN(adv_a, torch.zeros_like(adv_a))
-            adv_b = self.criterionGAN(adv_b, torch.zeros_like(adv_b))
-
-        if truth_classify:
-            classify_logits = nn.AdaptiveAvgPool2d(1)(classify_a - classify_b2) - nn.AdaptiveAvgPool2d(1)(classify_b - classify_a2)
-        else:
-            classify_logits = nn.AdaptiveAvgPool2d(1)(classify_b - classify_a2) - nn.AdaptiveAvgPool2d(1)(classify_a - classify_b2)
-
-        classify_logits, _ = torch.max(classify_logits, 0)
-        classify_logits = classify_logits.unsqueeze(0)
-        classify_logits = classifier(classify_logits)
-
-        if truth_classify:
-            classify = self.criterionGAN(classify_logits, torch.ones_like(classify_logits))
-        else:
-            classify = self.criterionGAN(classify_logits, torch.zeros_like(classify_logits))
-
-        if log is not None:
-            self.log(log, adv, on_step=False, on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
-
-        return adv_a, adv_b, classify, classify_logits
-
 
 # CUDA_VISIBLE_DEVICES=0,1,2 python train.py --jsn womac3 --prj Gds/descar3/Gdsmc3DB --mc --engine descar3 --netG dsmc --netD descar --direction areg_b --index --gray --bysubject --final none
-# CUDA_VISIBLE_DEVICES=0,1,2,3 python train.py --env  a6k --jsn womac3 --prj Gds/descar3b/GdsmcDboatch16 --mc --engine descar3b --netG dsmc --netD bpatch_16 --direction ap_bp --index --bysubject --final none
+# CUDA_VISIBLE_DEVICES=0,1,2 python train.py --env a6k --jsn womac3 --prj Gds/descar3b/GdsmcDboatch16 --mc --engine descar3b --netG dsmc --netD bpatch_16 --direction ap_bp --index --bysubject --final none

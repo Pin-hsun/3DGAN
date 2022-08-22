@@ -15,17 +15,19 @@ class GAN(BaseModel):
 
     def test_method(self, net_g, img):
         self.oriX = img[0]
-        self.imgX0 = net_g(self.oriX)[0]
+        self.oriY = img[1]
+        self.oriXparsing = (img[2] > 0).type(torch.FloatTensor).cuda()
+        self.imgX0 = net_g(x=self.oriX, parsing=self.oriXparsing)[0]
         return self.imgX0
 
     def generation(self):
         img = self.batch['img']
         self.oriX = img[0]
         self.oriY = img[1]
-        if self.net_g_inc > 0:
-            self.imgX0 = self.net_g(self.oriX, a=torch.zeros(self.oriX.shape[0], self.net_g_inc))[0]
-        else:
-            self.imgX0 = self.net_g(self.oriX)[0]
+        self.oriXparsing = (img[2] > 0).type(torch.FloatTensor).cuda()
+
+        self.imgX0 = self.net_g(x=self.oriX, parsing=self.oriXparsing)[0]
+
         if self.hparams.cmb is not False:
             self.imgX0 = combine(self.imgX0, self.oriX, method=self.hparams.cmb)
 
@@ -64,4 +66,4 @@ class GAN(BaseModel):
 # Residual
 # CUDA_VISIBLE_DEVICES=0 python train.py --dataset womac3 -b 16 --prj N01/Unet32Res --direction aregis1_b --cropsize 256 --engine pix2pixNS --netG unet_32 --res --n01 --final sigmoid
 
-# CUDA_VISIBLE_DEVICES=0,1,2 python train.py --jsn womac3 --prj NS/Gres6 --engine NS --direction areg_b --index --gray --netG resnet_6blocks --cmb mul --final sigmoid
+# CUDA_VISIBLE_DEVICES=0,1,2 python train.py --jsn womac3 --prj NSspade/Ggenre --engine NSspade --direction areg_b --index --gray --netG genre --cmb mul --final sigmoid

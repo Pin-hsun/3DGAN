@@ -15,6 +15,8 @@ from engine.base import combine
 import tifffile as tiff
 import numpy as np
 import matplotlib.pyplot as plt
+import pandas as pd
+
 cm = plt.get_cmap('viridis')
 
 
@@ -83,46 +85,23 @@ class Pix2PixModel:
             net.train()
         self.net_g = net
 
-    def get_one_output(self, i, xy, alpha=None):
+    def get_one_output(self, i, xy='x', alpha=None):
         # inputs
         x = self.test_set.__getitem__(i)
         name = x['filenames']
-        x = x['img']
-        oriX = x[0].unsqueeze(0).to(self.device)
-        oriY = x[1].unsqueeze(0).to(self.device)
-
-        if xy == 'x':
-            in_img = oriX
-            out_img = oriY
-        elif xy == 'y':
-            in_img = oriY
-            out_img = oriX
-
-        alpha = alpha / 100
+        img = x['img']
+        img = [x.unsqueeze(0).to(self.device) for x in img]
+        in_img = img[0]
+        out_img = img[1]
 
         ###
         self.net_g.train()
-        if 0:
-            for i in range(1):
-                try: ## descargan new
-                    output, output1 = self.net_g(in_img, alpha * torch.ones(1, 2).cuda())
-                except:
-                    try: ## descargan
-                        output = self.net_g(in_img, alpha * torch.ones(1, 2).cuda())[0]
-                    except:
-                        try: ## attgan
-                            self.net_g.f_size = args.cropsize // 32
-                            output = self.net_g(in_img, alpha * torch.ones(1, 1).cuda())[0]
-                        except:
-                            output = self.net_g(in_img)[0]
-
-            combined = combine(output, in_img, args.cmb)
 
         # test_method
         engine = args.engine
         test_method = getattr(__import__('engine.' + engine), engine).GAN.test_method
 
-        output = test_method(self, self.net_g, [in_img, out_img])
+        output = test_method(self, self.net_g, img)
         combined = combine(output, in_img, args.cmb)
 
         in_img = in_img.detach().cpu()[0, ::]
@@ -250,6 +229,41 @@ with open('env/jsn/' + parser.parse_args().jsn + '.json', 'rt') as f:
     t_args.__dict__.update(json.load(f)['test'])
     args = parser.parse_args(namespace=t_args)
 
+
+# try cam
+df = pd.read_csv('env/subjects_unipain_womac3.csv')
+train_index = [x for x in range(df.shape[0]) if not df['has_moaks'][x]]
+test_index = [x for x in range(df.shape[0]) if df['has_moaks'][x]]
+
+
+
+args.nepochs = [160, 161, 1]
+args.prj = '3D/descar3/GdsmcDboatch16'
+args.cropsize = 384
+args.n01 = True
+args.cmb = 'not'
+args.gray = True
+args.nalpha = [0, 20, 20]
+args.env = 'a6k'
+args.engine = 'descar3'
+
+
+netd = torch.load('/home/ubuntu/Data/logs/womac3/3D/descar3/GdsmcDboatch16/checkpoints/netD_model_epoch_160.pth').cuda()
+classifier = torch.load('/home/ubuntu/Data/logs/womac3/3D/descar3/GdsmcDboatch16/checkpoints/classifier_model_epoch_160.pth').cuda()
+
+
+
+def get_cam(x, y, netd, classifier):
+    weight = classifier.weight[:, :, 0, 0]
+    adv_x, cls_x = netd(torch.cat([x.unsqueeze(1)]*2, 1).cuda())
+    adv_y, cls_y = netd(torch.cat([y.unsqueeze(1)]*2, 1).cuda())
+    cam = torch.zeros((cls_x.shape[2], cls_x.shape[3])).cuda()
+    for f in range(cls_x.shape[1]):
+        cam = cam + weight[0, f] * (cls_x[0, f, :, :] - cls_y[0, f, :, :])
+    cam = -1 * torch.nn.Upsample((384, 384), mode='bicubic', align_corners=True)(cam.unsqueeze(0).unsqueeze(0))[0, ::]
+    return cam.detach().cpu()
+
+
 # environment file
 if args.env is not None:
     load_dotenv('env/.' + args.env)
@@ -264,116 +278,72 @@ if len(args.nalpha) == 1:
 test_unit = Pix2PixModel(args=args)
 print(len(test_unit.test_set))
 
-for epoch in range(*args.nepochs):
-    test_unit.get_model(epoch, eval=args.eval)
 
-    if args.all:
-        iirange = range(len(test_unit.test_set))
-    else:
-        iirange = range(1)
+for subject in test_index:
+    args.irange = range(23*subject, 23*(subject+1))
+    for epoch in range(*args.nepochs):
+        test_unit.get_model(epoch, eval=args.eval)
 
-    for ii in iirange:
         if args.all:
-            args.irange = [ii]
+            iirange = range(len(test_unit.test_set))
+        else:
+            iirange = range(1)
 
-        # MC
-        diffall = []
-        combinedall = []
-        outputall = []
-
-        for alpha in np.linspace(*args.nalpha):
-            out_xy = list(map(lambda v: test_unit.get_one_output(v, 'x', alpha), args.irange))
-
-            [imgX, imgY, combined, output, names] = list(zip(*out_xy))
-
-            # effusion
-            if 0:
-                effusion_seg = test_unit.get_eff(imgX[0])
-                destination = '/media/ExtHDD01/Dataset/paired_images/womac3/full/moaks/aeffseg/'
-                os.makedirs(destination, exist_ok=True)
-                tiff.imsave(destination + names[0][0].split('/')[-1],  effusion_seg.astype(np.uint8))
-
-            diff_xy = [(x[1] - x[0]) for x in list(zip(combined, imgX))]
+        for ii in iirange:
+            if args.all:
+                args.irange = [ii]
 
             # MC
-            diffall.append([x.unsqueeze(3) for x in diff_xy])
-            combinedall.append([x.unsqueeze(3) for x in combined])
-            outputall.append([x.unsqueeze(3) for x in output])
+            results = dict()
+            results_keys = ['diff', 'combined', 'output', 'camX', 'camXd']
+            for k in results_keys:
+                results[k] = []
 
-        # MC
-        [diffall, combinedall, outputall] = [list(zip(*x)) for x in [diffall, combinedall, outputall]]
+            for alpha in np.linspace(*args.nalpha):
+                out_xy = list(map(lambda v: test_unit.get_one_output(v, 'x', alpha), args.irange))  # N(subjects) list of O(outputs)
 
-        diffall = [torch.cat(x, 3) for x in diffall]
-        combinedall = [torch.cat(x, 3) for x in combinedall]
-        outputall = [torch.cat(x, 3) for x in outputall]
+                [imgX, imgY, combined, output, names] = list(zip(*out_xy))  # O(outputs) list of N(subjects)
 
-        diffvar = [x.std(3) for x in diffall]
-        diffall = [x.mean(3) for x in diffall]
-        combinedall = [x.mean(3) for x in combinedall]
+                diff = [(x[1] - x[0]) for x in list(zip(combined, imgX))]
 
-        outputmean = [x.mean(3) for x in outputall]
-        outputvar = [x.std(3) for x in outputall]
+                camX = [get_cam(x, y, netd, classifier) for x, y in zip(imgX, combined)]
 
-        outputsig = []
-        for i in range(len(outputmean)):
-            outputsig.append(torch.div(1-outputmean[i], outputvar[i]+0.0001))
+                camXd = [torch.multiply((x)/1, y) for x, y in zip((diff), camX)]
 
-        # average seg
-        #combinedall = [x[0,::] for x in combinedall]
-        a = test_unit.get_all_seg([combinedall])[0]
+                # MC
+                for k in results_keys:
+                    results[k].append([x.unsqueeze(0) for x in eval(k)])  # A(alphas) list of N(subjects)
 
-        # Segmentation
-        mask_bone = [0, 2, 4]
-        mask_eff = [1, 3]
+            # MC
+            for k in results_keys:
+                results[k] = list(zip(*results[k]))  # N(subjects) list of A(alphas)
+                results[k] = [torch.cat(x, 0) for x in results[k]]
+                results[k] = [x.mean(0) for x in results[k]]
 
-        tag = False
-        diffseg0 = seperate_by_seg(x=diffall, seg_used=a, masked=mask_bone, if_absolute=True)
-        diffseg1 = seperate_by_seg(x=diffall, seg_used=a, masked=mask_eff, if_absolute=True)
-        diffvar0 = seperate_by_seg(x=diffvar, seg_used=a, masked=mask_bone, if_absolute=False)
-        diffvar1 = seperate_by_seg(x=diffvar, seg_used=a, masked=mask_eff, if_absolute=False)
+            # average seg
+            a = test_unit.get_all_seg([results['combined']])[0]
+            # Segmentation
+            mask_bone = [0, 2, 4]
+            mask_eff = [1, 3]
 
-        outputsig0 = seperate_by_seg(x=outputsig, seg_used=a, masked=mask_bone, if_absolute=tag)
-        outputsig1 = seperate_by_seg(x=outputsig, seg_used=a, masked=mask_eff, if_absolute=tag)
+            tag = False
+            diffseg0 = seperate_by_seg(x=results['diff'], seg_used=a, masked=mask_bone, if_absolute=True)
+            diffseg1 = seperate_by_seg(x=results['diff'], seg_used=a, masked=mask_eff, if_absolute=True)
 
-        # significance
-        diffsig0 = []
-        diffsig1 = []
-        for i in range(len(diffvar0)):
-            diffsig0.append(torch.div(diffseg0[i], diffvar0[i]+0.0001))
-            diffsig1.append(torch.div(diffseg1[i], diffvar1[i]+0.0001))
+            # Print
+            if args.all:
+                destination = '/media/ExtHDD01/Dataset/paired_images/womac3/full/moaks/abml2/'
+                os.makedirs(destination, exist_ok=True)
+                tiff.imwrite(destination + names[0][0].split('/')[-1], diffseg0[0][0,::].numpy().astype(np.float32))
 
-        # Print
-        if 0:
-            to_show = [[to_rgb(x) for x in diffseg0],
-                       [to_rgb(x) for x in diffseg1],
-                       [to_rgb(x) for x in diffsig0],
-                       [to_rgb(x) for x in diffsig1]]
-            to_print(to_show, save_name=os.path.join("outputs/results", args.dataset, args.prj,
-                                                     str(epoch) + '_' + str(alpha) + '_' + str(ii).zfill(4) + 'm'))
-        elif 0:
-            to_show = [imgX, combined, diffseg0, diffseg1]
-            to_print(to_show, save_name=os.path.join("outputs/results", args.dataset, args.prj,
-                                                     str(epoch) + '_' + str(alpha) + '_' + str(ii).zfill(4) + 'm'))
-
-        if args.all:
-            destination = '/media/ExtHDD01/Dataset/paired_images/womac3/full/moaks/abml2/'
-            os.makedirs(destination, exist_ok=True)
-            tiff.imsave(destination + names[0][0].split('/')[-1], diffseg0[0][0,::].numpy().astype(np.float32))
-
-            destination = '/media/ExtHDD01/Dataset/paired_images/womac3/full/moaks/aeff2/'
-            os.makedirs(destination, exist_ok=True)
-            tiff.imsave(destination + names[0][0].split('/')[-1], diffseg1[0][0,::].numpy().astype(np.float32))
-        else:
-            to_show = [imgX, combined, diffseg0, diffseg1]
-            #to_show = [imgX, combined, [to_rgb(x) for x in diffseg0], [to_rgb(x) for x in diffseg1]]
-            to_print(to_show, save_name=os.path.join("outputs/results", args.dataset, args.prj,
-                                                     str(epoch) + '_' + str(alpha) + '_' + str(ii).zfill(4) + 'm'))
-
-
-
-            #to_show = [outputsig0, outputsig1]
-            #to_print(to_show, save_name=os.path.join("outputs/results", args.dataset, args.prj,
-            #                                         str(epoch) + '_' + str(alpha) + '_' + str(ii).zfill(4) + 's'))
+                destination = '/media/ExtHDD01/Dataset/paired_images/womac3/full/moaks/aeff2/'
+                os.makedirs(destination, exist_ok=True)
+                tiff.imwrite(destination + names[0][0].split('/')[-1], diffseg1[0][0,::].numpy().astype(np.float32))
+            else:
+                to_show = [imgX, combined, diffseg0, diffseg1, camX, camXd]
+                #to_show = [imgX, combined, [to_rgb(x) for x in diffseg0], [to_rgb(x) for x in diffseg1]]
+                to_print(to_show, save_name=os.path.join("outputs/results", args.dataset, args.prj,
+                                                         str(epoch) + '_' + str(subject) + '_' + str(ii).zfill(4) + 'm'))
 
 
 

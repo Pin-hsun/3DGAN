@@ -71,6 +71,7 @@ parser.add_argument('--epoch_load', type=int, help='to load checkpoint form the 
 parser.add_argument('--n_epochs_decay', type=int, help='# of iter to linearly decay learning rate to zero')
 parser.add_argument('--lr_policy', type=str, help='learning rate policy: lambda|step|plateau|cosine')
 parser.add_argument('--lr_decay_iters', type=int, help='multiply by a gamma every lr_decay_iters iterations')
+parser.add_argument('--save_d', action='store_true', dest='save_d', default=False,help='save checkpoints of discriminators')
 # Loss
 parser.add_argument('--lamb', type=int, help='weight on L1 term in objective')
 # Misc
@@ -122,15 +123,17 @@ else:
 train_set = Dataset(root=os.environ.get('DATASET') + args.dataset + folder,
                     path=args.direction,
                     opt=args, mode='train', index=train_index, filenames=True)
-train_loader = DataLoader(dataset=train_set, num_workers=args.threads, batch_size=args.batch_size, shuffle=True)
+train_loader = DataLoader(dataset=train_set, num_workers=args.threads, batch_size=args.batch_size, shuffle=True, pin_memory=True)
 
 if args.index:
     test_set = Dataset(root=os.environ.get('DATASET') + args.dataset + folder,
                         path=args.direction,
                         opt=args, mode='train', index=test_index, filenames=True)
-    test_loader = DataLoader(dataset=test_set, num_workers=args.threads, batch_size=args.batch_size, shuffle=False)
+    test_loader = DataLoader(dataset=test_set, num_workers=args.threads, batch_size=args.batch_size, shuffle=False, pin_memory=True)
 else:
     test_loader = None
+
+
 
 #val_set = Dataset(root=os.environ.get('DATASET') + args.dataset + '/test/',
 #                  path=args.direction,
@@ -151,7 +154,7 @@ checkpoints = os.path.join(os.environ.get('LOGS'), args.dataset, args.prj, 'chec
 os.makedirs(checkpoints, exist_ok=True)
 net = GAN(hparams=args, train_loader=train_loader, test_loader=test_loader, checkpoints=checkpoints)
 trainer = pl.Trainer(gpus=-1, strategy='ddp',
-                     max_epochs=args.n_epochs, progress_bar_refresh_rate=20, logger=logger,
+                     max_epochs=args.n_epochs + 1, progress_bar_refresh_rate=20, logger=logger,
                      enable_checkpointing=False)
 print(args)
 trainer.fit(net, train_loader, test_loader)  # test loader not used during training

@@ -1,9 +1,11 @@
 from __future__ import print_function
 import argparse, json
-import os
+import os,glob
 from utils.data_utils import imagesc
 import torch
 from torchvision.utils import make_grid
+import torchvision
+
 import numpy as np
 import matplotlib.pyplot as plt
 from dotenv import load_dotenv
@@ -11,7 +13,6 @@ from utils.data_utils import norm_01
 from skimage import io
 import torchvision.transforms as transforms
 import torch.nn as nn
-from engine.base import combine
 import tifffile as tiff
 from dataloader.data_multi import MultiData as Dataset
 
@@ -46,15 +47,14 @@ class Pix2PixModel:
                                     opt=args, mode='test', filenames=True)
         else:
             from dataloader.data_multi import PairedDataTif
-            self.test_set = PairedDataTif(root='/media/ExtHDD01/Dataset/paired_images/Fly0B/',
-                                          directions='xyzweak_xyzsb', permute=(0, 2, 1),
-                                          crop=[0, 1890, 1024+512, 1024+512+32, 0, 1024])
-        print(len(self.test_set))
+            self.test_set = PairedDataTif(root='/media/ExtHDD01/Dataset/paired_images/Fly3D/',
+                                          directions='xyzweak_xyzsb', permute=None,
+                                          crop=None)
 
         self.device = torch.device("cuda:0")
 
     def get_model(self,  epoch, eval=False):
-        model_path = os.path.join(self.dir_checkpoints, self.args.dataset, self.args.prj, 'checkpoints') + \
+        model_path = os.path.join(self.dir_checkpoints, self.args.dataset.split('/')[0], self.args.prj, 'checkpoints') + \
                ('/' + self.args.netg + '_model_epoch_{}.pth').format(epoch)
         print(model_path)
         net = torch.load(model_path).to(self.device)
@@ -70,7 +70,6 @@ class Pix2PixModel:
         # inputs
         x = self.test_set.__getitem__(i)
         x = x['img']
-        print(x[0].shape)
 
         for b in range(len(x)):
             x[b] = x[b].to(self.device)
@@ -107,7 +106,7 @@ class Pix2PixModel:
 # Command Line Argument
 parser = argparse.ArgumentParser(description='pix2pix-pytorch-implementation')
 parser.add_argument('--env', type=str, default=None, help='environment_to_use')
-parser.add_argument('--jsn', type=str, default='womac3', help='name of ini file')
+parser.add_argument('--jsn', type=str, default='wnwp3d', help='name of ini file')
 parser.add_argument('--engine', dest='engine', type=str, help='use which engine')
 parser.add_argument('--dataset', help='name of training dataset')
 parser.add_argument('--testset', help='name of testing dataset if different than the training dataset')
@@ -133,10 +132,14 @@ parser.add_argument('--mc', action='store_true', dest='mc')
 parser.add_argument('--sfx', dest='suffix', type=str, default='')
 parser.add_argument('--tif', action='store_true', dest='tif')
 
-with open('outputs/jsn/' + parser.parse_args().jsn + '.json', 'rt') as f:
+with open('env/jsn/' + parser.parse_args().jsn + '.json', 'rt') as f:
     t_args = argparse.Namespace()
-    t_args.__dict__.update(json.load(f))
+    t_args.__dict__.update(json.load(f)['test'])
     args = parser.parse_args(namespace=t_args)
+
+args.dataset = 'Fly0B'
+args.direction = 'zyweak1024_zyori1024'
+args.cropsize = 1024
 
 # environment file
 if args.env is not None:
@@ -144,46 +147,116 @@ if args.env is not None:
 else:
     load_dotenv('env/.t09')
 
-if len(args.nepochs) == 1:
-    args.nepochs = [args.nepochs[0], args.nepochs[0]+1, 1]
-if len(args.nalpha) == 1:
-    args.nalpha = [args.nalpha[0], args.nalpha[0]+1, 1]
-
 test_unit = Pix2PixModel(args=args)
-print(len(test_unit.test_set))
 
-for epoch in range(*args.nepochs):
-    test_unit.get_model(epoch, eval=args.eval)
 
-    if args.all:
-        iirange = range(len(test_unit.test_set))[:]
+def make_rotation_3d():
+    if 0:
+        net = torch.load('/media/ExtHDD01/logs/Fly3D/wnwp3d/cyc4/GdenuWO/checkpoints/netGXY_model_epoch_160.pth').cuda()
+        x = test_unit.test_set.__getitem__(0)['img']
+        print(len(test_unit.test_set))
     else:
-        iirange = range(1)
+        net = torch.load('/media/ExtHDD01/logs/Fly0B/wnwp3d/cyc4/GdenuWBmc/checkpoints/netGXY_model_epoch_100.pth').cuda()
+        #net = torch.load('submodels/1.pth').cuda()  #  mysterious Resnet model with ResnetAdaILNBlock (ugatit?)
+        from dataloader.data_multi import PairedDataTif
+        test_set = PairedDataTif(root='/media/ExtHDD01/Dataset/paired_images/Fly0B/',
+                                           directions='xyzweak_xyzsb', permute=(0, 1, 2),
+                                           crop=[1890-1792, 1890, 1024, 2048, 0, 1024])
+        x = test_set.__getitem__(0)['img']
 
-    for ii in iirange:
-        if args.all:
-            args.irange = [ii]
-        seg0_all = []
-        seg1_all = []
+    w = x[0][0, ::]  #(z, x, y)
+    b = x[1][0, ::]  #(z, x, y)
+    del x
 
-        out_all = []
-        for alpha in np.linspace(*args.nalpha)[:]:
-            x0, x1, output = test_unit.get_one_output(args.irange[0], alpha)
-            out_all.append(output)
+    #w = w.permute(0, 2, 1)  #(z, x, y)
+    #b = b.permute(0, 2, 1)
 
-        output = torch.cat([x.unsqueeze(4) for x in out_all], 4)
-        output_mean = output.mean(4)
-        output_var = output.var(4)
+    #w = ((w > 0) / 1) * 2 - 1
 
-        if not args.tif:
-            os.makedirs('outputs/' + args.dataset + '/' + args.prj + '/', exist_ok=True)
-            tiff.imsave('outputs/' + args.dataset + '/' + args.prj + '/' + str(epoch) + '_' + str(args.nalpha[2]) + args.suffix + '.tif', output_mean[:, 0, :, :].detach().cpu().numpy())
-            if args.nalpha[2] > 1:
-                tiff.imsave('outputs/' + args.dataset + '/' + args.prj + '/' + str(epoch) + '_' + str(args.nalpha[2]) + args.suffix + 'v.tif', output_var[:, 0, :, :].detach().cpu().numpy())
-        else:
-            tiff.imsave('/home/ghc/Desktop/temp0/' + args.suffix + '.tif', output_mean[:, 0, ::].detach().cpu().numpy())
-            if args.nalpha[2] > 1:
-                tiff.imsave('/home/ghc/Desktop/temp0/' + args.suffix + 'v.tif', output_var[:, 0, ::].detach().cpu().numpy())
+    for angle in list(range(0, 360, 10)):
+        print(angle)
+        wp = transforms.functional.rotate(w.unsqueeze(1), angle=angle,  #(z, 1, x, y)
+                                          interpolation=torchvision.transforms.functional.InterpolationMode.BILINEAR, fill=-1)
+        bp = transforms.functional.rotate(b.unsqueeze(1), angle=angle,
+                                          interpolation=torchvision.transforms.functional.InterpolationMode.BILINEAR, fill=-1)
+
+        wall = []
+        ball = []
+        for i in range(wp.shape[2]):
+            print(i)
+            w_slice = wp[:, 0, i, :].unsqueeze(0).unsqueeze(0).cuda()
+            b_slice = bp[:, 0, i, :].unsqueeze(0).unsqueeze(0).cuda()
+
+            wout, bout = net(torch.cat((w_slice, b_slice), 1))#, a=None)
+            wall.append(wout.detach().cpu())
+            ball.append(bout.detach().cpu())
+
+        del wp
+        del bp
+
+        wall = torch.cat(wall, 0)  #(x, 1, z, y)
+        wall = wall.permute(2, 1, 0, 3)
+        ball = torch.cat(ball, 0)  #(x, 1, z, y)
+        ball = ball.permute(2, 1, 0, 3)
+
+        wall = transforms.functional.rotate(wall, angle=-angle,  #(z, 1, x, y)
+                                           interpolation=torchvision.transforms.functional.InterpolationMode.BILINEAR, fill=-1)
+        ball = transforms.functional.rotate(ball, angle=-angle,  #(z, 1, x, y)
+                                           interpolation=torchvision.transforms.functional.InterpolationMode.BILINEAR, fill=-1)
+
+        mask = (w > -1).unsqueeze(1)
+
+        #wall[mask == 0] = -1
+        #ball[mask == 0] = -1
+
+        wall = wall.numpy()[:, 0, ::]
+        ball = ball.numpy()[:, 0, ::]
+
+        wall = wall[:, 256:-256, 256:-256]
+        ball = ball[:, 256:-256, 256:-256]
+
+        tiff.imsave('/media/ghc/GHc_data2/allmbm/' + str(angle).zfill(3) + '.tif', wall)
+        tiff.imsave('/media/ghc/GHc_data2/allmbb/' + str(angle).zfill(3) + '.tif', ball)
+
+
+def sum_all():
+    files = sorted(glob.glob('/media/ghc/GHc_data2/allbbb/*'))
+
+    if 1: # calculate average
+        all = tiff.imread(files[0])
+        for f in files[1:]:
+            print(f)
+            all = all + tiff.imread(f)
+        m = all / len(files)
+    else:
+        mean = tiff.imread('/media/ghc/GHc_data2/wg.tif')
+        var = np.square(tiff.imread(files[0]) - mean)
+        for f in files[1:]:
+            print(f)
+            var = var + np.square(tiff.imread(f) - mean)
+        var = var / len(files)
+
+
+if 0:
+    wp = w.unsqueeze(1)
+    wp = wp[:, :, 256:-256, 256:-256]
+    bp = b.unsqueeze(1)
+    bp = bp[:, :, 256:-256, 256:-256]
+    ball = []
+    for i in range(bp.shape[2]):
+        print(i)
+        b_slice = bp[:, 0, i, :].unsqueeze(0).unsqueeze(0).cuda()
+        #w_slice = wp[:, 0, i, :].unsqueeze(0).unsqueeze(0).cuda()
+
+        bout = net(b_slice)[0]
+        #wout, bout = net(torch.cat((w_slice, b_slice), 1), a=None)
+        ball.append(bout.detach().cpu())
+
+    ball = torch.cat(ball, 0)  # (x, 1, z, y)
+    ball = ball.permute(2, 1, 0, 3)
+    ball = ball.numpy()[:, 0, ::]
+    #ball = ball[:, 256:-256, 256:]
+    tiff.imsave('gut.tif', ball)
 
 # USAGE
 # CUDA_VISIBLE_DEVICES=0 python test.py --jsn default --dataset pain --nalpha 0 100 2  --prj VryAtt

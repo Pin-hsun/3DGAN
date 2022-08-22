@@ -10,6 +10,9 @@ import pytorch_lightning as pl
 from utils.metrics_segmentation import SegmentationCrossEntropyLoss
 from utils.metrics_classification import CrossEntropyLoss, GetAUC
 from utils.data_utils import *
+class Namespace:
+    def __init__(self, **kwargs):
+        self.__dict__.update(kwargs)
 
 
 def _weights_init(m):
@@ -57,7 +60,7 @@ class BaseModel(pl.LightningModule):
         self.set_networks()
 
         # Optimizer and scheduler
-        [self.optimizer_d, self.optimizer_g], [] = self.configure_optimizers()
+        [self.optimizer_d, self.optimizer_g], [self.net_g_scheduler, self.net_d_scheduler] = self.configure_optimizers()
         self.net_g_scheduler = get_scheduler(self.optimizer_g, self.hparams)
         self.net_d_scheduler = get_scheduler(self.optimizer_d, self.hparams)
 
@@ -119,6 +122,11 @@ class BaseModel(pl.LightningModule):
                                          output_nc=self.hparams.output_nc, ngf=self.hparams.ngf,
                                          n_blocks=4, img_size=128, light=True)
             self.net_g_inc = 0
+        elif self.hparams.netG == 'genre':
+            from models.genre.generator.Unet_base import SPADEUNet2s
+            opt = Namespace(input_size=128, parsing_nc=1, norm_G='spectralspadebatch3x3', spade_mode='res2',
+                            use_en_feature=False)
+            self.net_g = SPADEUNet2s(opt=opt, in_channels=1, out_channels=1)
         else:
             from models.networks import define_G
             self.net_g = define_G(input_nc=self.hparams.input_nc, output_nc=self.hparams.output_nc,
@@ -160,9 +168,12 @@ class BaseModel(pl.LightningModule):
             self.net_d = define_D(input_nc=self.hparams.output_nc * 2, ndf=64, netD=self.hparams.netD)
 
         # Init. Network Parameters
-        self.net_g = self.net_g.apply(_weights_init)
+        if self.hparams.netG == 'genre':
+            print('no init netG of genre')
+        else:
+            self.net_g = self.net_g.apply(_weights_init)
         if self.hparams.netD == 'sagan':
-            print('not init for netD of sagan')
+            print('no init netD of sagan')
         else:
             self.net_d = self.net_d.apply(_weights_init)
 
@@ -178,62 +189,6 @@ class BaseModel(pl.LightningModule):
         self.optimizer_g = optim.Adam(netg_parameters, lr=self.hparams.lr, betas=(self.hparams.beta1, 0.999))
         self.optimizer_d = optim.Adam(netd_parameters, lr=self.hparams.lr, betas=(self.hparams.beta1, 0.999))
         return [self.optimizer_d, self.optimizer_g], []
-
-    def add_loss_adv_classify3d(self, a, net_d, truth_adv, truth_classify, log=None):
-        fake_in = torch.cat((a, a), 1)
-        adv_logits, classify_logits = net_d(fake_in)
-
-        # 3D classification
-        classify_logits = nn.AdaptiveAvgPool2d(1)(classify_logits)
-        classify_logits = classify_logits.sum(0).unsqueeze(0)
-
-        if truth_adv:
-            adv = self.criterionGAN(adv_logits, torch.ones_like(adv_logits))
-        else:
-            adv = self.criterionGAN(adv_logits, torch.zeros_like(adv_logits))
-
-        if truth_classify:
-            classify = self.criterionGAN(classify_logits, torch.ones_like(classify_logits))
-        else:
-            classify = self.criterionGAN(classify_logits, torch.zeros_like(classify_logits))
-
-        if log is not None:
-            self.log(log, adv, on_step=False, on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
-
-        return adv, classify
-
-    def add_loss_adv_classify3d_paired(self, a, b, net_d, classifier, truth_adv, truth_classify, log=None):
-        a_in = torch.cat((a, a), 1)
-        adv_a, classify_a = net_d(a_in)
-        b_in = torch.cat((b, b), 1)
-        adv_b, classify_b = net_d(b_in)
-
-        if truth_adv:
-            adv_a = self.criterionGAN(adv_a, torch.ones_like(adv_a))
-            adv_b = self.criterionGAN(adv_b, torch.ones_like(adv_b))
-        else:
-            adv_a = self.criterionGAN(adv_a, torch.zeros_like(adv_a))
-            adv_b = self.criterionGAN(adv_b, torch.zeros_like(adv_b))
-
-        if truth_classify:
-            classify_logits = nn.AdaptiveAvgPool2d(1)(classify_a - classify_b)
-        else:
-            classify_logits = nn.AdaptiveAvgPool2d(1)(classify_b - classify_a)
-
-        classify_logits, _ = torch.max(classify_logits, 0)
-        classify_logits = classify_logits.unsqueeze(0)
-        classify_logits = classifier(classify_logits)
-
-        if truth_classify:
-            classify = self.criterionGAN(classify_logits, torch.ones_like(classify_logits))
-        else:
-            classify = self.criterionGAN(classify_logits, torch.zeros_like(classify_logits))
-
-        if log is not None:
-            self.log(log, adv, on_step=False, on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
-
-        return adv_a, adv_b, classify, classify_logits
-
 
     def add_loss_adv(self, a, net_d, coeff, truth, b=None, log=None, stacked=False):
         if stacked:
@@ -283,11 +238,17 @@ class BaseModel(pl.LightningModule):
         self.train_loader.dataset.shuffle_images()
 
         # checkpoint
-        if self.epoch % 10 == 0:
+        if self.epoch % 20 == 0:
             for name in self.netg_names.keys():
-                path = self.dir_checkpoints + ('/' + self.netg_names[name] + '_model_epoch_{}.pth').format(self.epoch)
-                torch.save(getattr(self, name), path)
-                print("Checkpoint saved to {}".format(path))
+                path_g = self.dir_checkpoints + ('/' + self.netg_names[name] + '_model_epoch_{}.pth').format(self.epoch)
+                torch.save(getattr(self, name), path_g)
+                print("Checkpoint saved to {}".format(path_g))
+
+            if self.hparams.save_d:
+                for name in self.netd_names.keys():
+                    path_d = self.dir_checkpoints + ('/' + self.netd_names[name] + '_model_epoch_{}.pth').format(self.epoch)
+                    torch.save(getattr(self, name), path_d)
+                    print("Checkpoint saved to {}".format(path_d))
 
         self.epoch += 1
         self.tini = time.time()
@@ -297,7 +258,6 @@ class BaseModel(pl.LightningModule):
         self.all_label = []
         self.all_out = []
 
-
     def generation(self):
         return 0
 
@@ -306,7 +266,3 @@ class BaseModel(pl.LightningModule):
 
     def backward_d(self, inputs):
         return 0
-
-# CUDA_VISIBLE_DEVICES=2 python train.py --dataset womac3 -b 16 --prj NS/unet128 --direction aregis1_b --cropsize 256 --engine pix2pixNS --netG unet_128
-
-

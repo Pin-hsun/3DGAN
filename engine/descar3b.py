@@ -110,4 +110,6 @@ class GAN(GANbase):
 
 
 
-# CUDA_VISIBLE_DEVICES=0,1,2 python train.py --jsn womac3 --prj Gds/descar3/Gdsmc3DB --mc --engine descar3 --netG dsmc --netD descar --direction areg_b --index --gray --bysubject --final none
+# CUDA_VISIBLE_DEVICES=0,1,2 python train.py --env a6k --jsn womac3 --prj Gds/descar3b/GdsmcDboatch16 --mc --engine descar3b --netG dsmc --netD bpatch_16 --direction ap_bp --index --bysubject --final none
+
+#CUDA_VISIBLE_DEVICES=1 python testoai.py --jsn womac3 --direction a_b --prj Gds/descar3b/GdsmcDboatch16 --cropsize 384 --n01 --cmb not --gray --nepochs 40 201 20 --nalpha 0 100 100 --env a6k --engine descar3b

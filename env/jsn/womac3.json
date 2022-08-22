@@ -47,7 +47,7 @@
     "test":
         {
             "dataset": "womac3",
-            "testset": "womac3/test/",
+            "testset": "womac3/full/",
             "unpaired": false,
             "direction": "a_b",
             "prj": "verify/descar2/Gdescarsmc",
@@ -57,8 +57,8 @@
             "irangeT": [233],
             "irange0": [149, 244, 338, 437, 442, 618, 628, 658],
             "irange1": [14, 24, 45, 190, 270, 283, 403, 459, 503],
-            "irange": [14, 24, 190, 270, 283, 459, 503, 149, 244, 338, 437, 442, 618, 628, 658],
-            "irange4": [29, 39, 119, 139, 212],
+            "irange2": [14, 24, 190, 270, 283, 459, 503, 149, 244, 338, 437, 442, 618, 628, 658],
+            "irange": [38, 73, 111, 119, 162, 212, 233, 248, 326, 352],
             "flip": false,
             "eval": false,
             "n01": true,
