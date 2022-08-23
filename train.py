@@ -20,7 +20,7 @@ def prepare_log(args):
     os.makedirs(os.environ.get('LOGS') + args.dataset + '/', exist_ok=True)
     os.makedirs(os.environ.get('LOGS') + args.dataset + '/' + args.prj + '/', exist_ok=True)
     save_json(args, os.environ.get('LOGS') + args.dataset + '/' + args.prj + '/' + '0.json')
-    shutil.copy('engine/' + args.engine + '.py', os.environ.get('LOGS') + args.dataset + '/' + args.prj + '/' + args.engine + '.py')
+    shutil.copy('models/' + args.models + '.py', os.environ.get('LOGS') + args.dataset + '/' + args.prj + '/' + args.models + '.py')
     return args
 
 
@@ -31,7 +31,7 @@ parser.add_argument('--jsn', type=str, default='default', help='name of ini file
 parser.add_argument('--env', type=str, default=None, help='environment_to_use')
 # Project name
 parser.add_argument('--prj', type=str, help='name of the project')
-parser.add_argument('--engine', dest='engine', type=str, help='use which engine')
+parser.add_argument('--models', dest='models', type=str, help='use which models')
 # Data
 parser.add_argument('--dataset', type=str)
 parser.add_argument('--bysubject', action='store_true', dest='bysubject', default=False, help='do 3D')
@@ -83,8 +83,8 @@ parser.add_argument('--mode', type=str, default='dummy')
 parser.add_argument('--port', type=str, default='dummy')
 
 # Model-specific Arguments
-engine = parser.parse_known_args()[0].engine
-GAN = getattr(__import__('engine.' + engine), engine).GAN
+models = parser.parse_known_args()[0].models
+GAN = getattr(__import__('models.' + models), models).GAN
 parser = GAN.add_model_specific_args(parser)
 
 # Read json file and update it
@@ -163,10 +163,10 @@ trainer.fit(net, train_loader, test_loader)  # test loader not used during train
 
 
 # Example Usage
-# CUDA_VISIBLE_DEVICES=1 python train.py --dataset TSE_DESS -b 16 --prj VryCycle --direction a_b --resize 286 --engine cyclegan --lamb 10 --unpaired
-# CUDA_VISIBLE_DEVICES=1 python train.py --dataset pain -b 16 --prj VryNS4B --direction aregis1_b --resize 286 --engine NS4 --netG attgan
-# CUDA_VISIBLE_DEVICES=0 python train.py --dataset FlyZ -b 16 --prj WpWn286B --direction xyweak%zyweak --resize 286 --engine cyclegan --lamb 10
-# CUDA_VISIBLE_DEVICES=1 python train.py --dataset FlyZ -b 16 --prj WpOp256Mask --direction xyweak_xyorisb --resize 256 --engine pix2pixNS
+# CUDA_VISIBLE_DEVICES=1 python train.py --dataset TSE_DESS -b 16 --prj VryCycle --direction a_b --resize 286 --models cyclegan --lamb 10 --unpaired
+# CUDA_VISIBLE_DEVICES=1 python train.py --dataset pain -b 16 --prj VryNS4B --direction aregis1_b --resize 286 --models NS4 --netG attgan
+# CUDA_VISIBLE_DEVICES=0 python train.py --dataset FlyZ -b 16 --prj WpWn286B --direction xyweak%zyweak --resize 286 --models cyclegan --lamb 10
+# CUDA_VISIBLE_DEVICES=1 python train.py --dataset FlyZ -b 16 --prj WpOp256Mask --direction xyweak_xyorisb --resize 256 --models pix2pixNS
 
-# CUDA_VISIBLE_DEVICES=0 python train.py --jsn womac3 --prj mcfix/descar2/Gunet128 --engine descar2 --netG unet_128 --mc --direction areg_b --index
-# CUDA_VISIBLE_DEVICES=0 python train.py --dataset womac3 -b 1 --prj bysubjectright/descar2/GDdescars --direction areg_b --cropsize 256 --engine descar2 --netG descars --netD descar --n01 --final sigmoid --cmb mul --bysubject
+# CUDA_VISIBLE_DEVICES=0 python train.py --jsn womac3 --prj mcfix/descar2/Gunet128 --models descar2 --netG unet_128 --mc --direction areg_b --index
+# CUDA_VISIBLE_DEVICES=0 python train.py --dataset womac3 -b 1 --prj bysubjectright/descar2/GDdescars --direction areg_b --cropsize 256 --models descar2 --netG descars --netD descar --n01 --final sigmoid --cmb mul --bysubject

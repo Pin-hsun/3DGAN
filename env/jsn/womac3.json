@@ -3,7 +3,7 @@
         {
             "env": null,
             "prj": "default",
-            "engine": "NS",
+            "models": "NS",
             "dataset": "womac3",
             "train_index": [213, 710, 1],
             "bysubject": true,
