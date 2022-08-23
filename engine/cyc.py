@@ -48,7 +48,6 @@ class GAN(BaseModel):
             self.idt_X = self.net_gYX(self.oriX)[0]
             self.idt_Y = self.net_gXY(self.oriY)[0]
 
-
     def backward_g(self, inputs):
         loss_g = 0
         # ADV(XY)+
@@ -87,8 +86,6 @@ class GAN(BaseModel):
 
 
 # USAGE
-# CUDA_VISIBLE_DEVICES=1 python train.py --dataset FlyZ -b 16 --prj WpWn256test --direction xyweak%zyweak --resize 256 --engine cyclegan --lamb 10 --input_nc 2 --output_nc 2
-
-# CUDA_VISIBLE_DEVICES=1 python train.py --jsn wnwp --prj wnwp/cyc2/0test --engine cyclegan --cropsize 128 --direction zyweak%xyweak --input_nc 1 --output_nc 1 --gray --netG unet_128
-
 # CUDA_VISIBLE_DEVICES=1 python train.py --jsn wnwp3d --prj wnwp3d/cyc/GdenuOmc --mc --engine cyc -b 16 --netG descarnoumc  --direction zyori%xyori --dataset Fly0B --input_nc 1
+
+# CUDA_VISIBLE_DEVICES=0,1,2,3 python train.py --jsn 40x2fly10 --prj cyc/test0 --engine cyc -b 16 --direction 40xdown2%xysb --dataset 40x --input_nc 1

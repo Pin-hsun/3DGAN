@@ -1,0 +1,89 @@
+{
+    "train":
+        {
+            "env": null,
+            "gray": true,
+            "prj": "default",
+            "engine": "cyc",
+            "dataset": "Fly3D",
+            "train_index": false,
+            "bysubject": false,
+            "direction": "zyweak_zyorisb%xyweak_xyorisb",
+            "flip": false,
+            "resize": 0,
+            "cropsize": 128,
+            "trd": 0,
+            "gan_mode": "vanilla",
+            "netG": "unet_128",
+            "norm": "batch",
+            "mc": false,
+            "netD": "patch_16",
+            "input_nc": 2,
+            "output_nc": 1,
+            "ngf": 64,
+            "ndf": 64,
+            "n01": false,
+            "final": "tanh",
+            "cmb": false,
+            "batch_size": 16,
+            "test_batch_size": 1,
+            "n_epochs": 201,
+            "lr": 0.0002,
+            "beta1": 0.5,
+            "threads": 4,
+            "seed": 123,
+            "epoch_count": 0,
+            "epoch_load": 0,
+            "n_epochs_decay": 100,
+            "lr_policy": "lambda",
+            "lr_decay_iters": 50,
+            "lamb": 100,
+            "legacy": false,
+            "mode": "dummy",
+            "port": "dummy",
+            "not_tracking_hparams": [
+                "mode",
+                "port",
+                "epoch_load",
+                "legacy",
+                "threads",
+                "test_batch_size"]
+    },
+    "test":
+        {
+            "dataset": "Fly3D",
+            "testset": "Fly3D/train/",
+            "unpaired": false,
+            "gray": true,
+            "bysubject": true,
+            "direction": "zyweak_zyori",
+            "prj": "WpWn256",
+            "netg": "netGXY",
+            "resize": 0,
+            "cropsize": 512,
+            "trd": 0,
+            "cmb": false,
+            "n01": false,
+            "irange": [
+                2
+            ],
+            "irangeB": [
+                2
+            ],
+            "flip": false,
+            "eval": false,
+            "nepochs": [
+                0,
+                210,
+                10
+            ],
+            "nalpha": [
+                0,
+                100,
+                1
+            ],
+            "mode": "client",
+            "port": "45727",
+            "usage": "python test.py --jsn FlyZWpWn --direction zyori%xyorisb --prj check/wnwp/0/ --nalpha 0 20 21"
+        }
+}

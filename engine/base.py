@@ -60,9 +60,7 @@ class BaseModel(pl.LightningModule):
         self.set_networks()
 
         # Optimizer and scheduler
-        [self.optimizer_d, self.optimizer_g], [self.net_g_scheduler, self.net_d_scheduler] = self.configure_optimizers()
-        self.net_g_scheduler = get_scheduler(self.optimizer_g, self.hparams)
-        self.net_d_scheduler = get_scheduler(self.optimizer_d, self.hparams)
+        [self.optimizer_d, self.optimizer_g], [self.net_d_scheduler, self.net_g_scheduler] = self.configure_optimizers()
 
         # Define Loss Functions
         self.CELoss = CrossEntropyLoss()
@@ -188,7 +186,10 @@ class BaseModel(pl.LightningModule):
 
         self.optimizer_g = optim.Adam(netg_parameters, lr=self.hparams.lr, betas=(self.hparams.beta1, 0.999))
         self.optimizer_d = optim.Adam(netd_parameters, lr=self.hparams.lr, betas=(self.hparams.beta1, 0.999))
-        return [self.optimizer_d, self.optimizer_g], []
+        self.net_g_scheduler = get_scheduler(self.optimizer_g, self.hparams)
+        self.net_d_scheduler = get_scheduler(self.optimizer_d, self.hparams)
+
+        return [self.optimizer_d, self.optimizer_g], [self.net_d_scheduler, self.net_g_scheduler]
 
     def add_loss_adv(self, a, net_d, coeff, truth, b=None, log=None, stacked=False):
         if stacked:
