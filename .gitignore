@@ -11,6 +11,7 @@ __pycache__/
 *.png
 
 postprocessing/
+models/old/
 
 # C extensions
 *.so
@@ -22,7 +23,7 @@ dataset/
 forpaper/
 postprocessing/
 logs/
-logs2/
+
 outputs/results/
 outputs/wnwp3d/
 outputs/XXX/

@@ -114,10 +114,12 @@ if args.index:  # if use customized index
     # new index
     #df = pd.read_csv(os.getenv("HOME") + '/Dropbox/TheSource/scripts/OAI_pipelines/meta/subjects_unipain_womac3.csv')
     df = pd.read_csv('env/subjects_unipain_womac3.csv')
-    train_index = [x for x in range(df.shape[0]) if not df['has_moaks'][x]]
-    test_index = [x for x in range(df.shape[0]) if df['has_moaks'][x]]
+    #train_index = [x for x in range(df.shape[0]) if not df['has_moaks'][x]]
+    #test_index = [x for x in range(df.shape[0]) if df['has_moaks'][x]]
     # train_index = range(213, 710)
     # eval_index = range(0, 213)
+    train_index = range(0, 497)
+    test_index = range(497, 710)
 else:
     folder = '/train/'
     train_index = None
@@ -143,13 +145,11 @@ else:
 #val_loader = DataLoader(dataset=val_set, num_workers=args.threads, batch_size=args.batch_size, shuffle=False)
 
 # Logger
-if 1:
-    logger = pl_loggers.TensorBoardLogger(os.environ.get('LOGS') + args.dataset + '/', name=args.prj)
-else:
-    from pytorch_lightning.loggers.neptune import NeptuneLogger
-    logger = NeptuneLogger(
-        api_key="ANONYMOUS",
-        project="shared/pytorch-lightning-integration")
+logger = pl_loggers.TensorBoardLogger(os.environ.get('LOGS') + args.dataset + '/', name=args.prj)
+#from pytorch_lightning.loggers.neptune import NeptuneLogger
+#logger = NeptuneLogger(
+#    api_key="ANONYMOUS",
+#    project="shared/pytorch-lightning-integration")
 
 # Trainer
 checkpoints = os.path.join(os.environ.get('LOGS'), args.dataset, args.prj, 'checkpoints')

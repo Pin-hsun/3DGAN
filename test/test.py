@@ -11,7 +11,7 @@ from utils.data_utils import norm_01
 from skimage import io
 import torchvision.transforms as transforms
 import torch.nn as nn
-from engine.base import combine
+from models.base import combine
 import tifffile as tiff
 from dataloader.data_multi import MultiData as Dataset
 
