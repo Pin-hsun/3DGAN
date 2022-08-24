@@ -72,7 +72,7 @@ class GAN(BaseModel):
         axy = self.add_loss_adv(a=self.imgXY, net_d=self.net_d, coeff=1, truth=True, stacked=False)
 
         # L1(X0, Y)
-        loss_l1xy_y = self.add_loss_L1(a=self.imgXY, b=self.oriY, coeff=1)
+        loss_l1xy_y = self.add_loss_l1(a=self.imgXY, b=self.oriY, coeff=1)
 
         self.log('gaxy', axy, on_step=False, on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
         self.log('l1xy_y', loss_l1xy_y, on_step=False, on_epoch=True, prog_bar=True, logger=True, sync_dist=True)

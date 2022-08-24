@@ -56,15 +56,15 @@ class GAN(BaseModel):
         loss_g += self.add_loss_adv(a=self.imgYX, b=None, net_d=self.net_dX, coeff=1, truth=True, stacked=False)
 
         # Cyclic(XYX, X)
-        loss_g += self.add_loss_L1(a=self.imgXYX, b=self.oriX, coeff=self.hparams.lamb)
+        loss_g += self.add_loss_l1(a=self.imgXYX, b=self.oriX, coeff=self.hparams.lamb)
         # Cyclic(YXY, Y)
-        loss_g += self.add_loss_L1(a=self.imgYXY, b=self.oriY, coeff=self.hparams.lamb)
+        loss_g += self.add_loss_l1(a=self.imgYXY, b=self.oriY, coeff=self.hparams.lamb)
 
         # Identity(idt_X, X)
         if self.hparams.lambI > 0:
-            loss_g += self.add_loss_L1(a=self.idt_X, b=self.oriX, coeff=self.hparams.lambI)
+            loss_g += self.add_loss_l1(a=self.idt_X, b=self.oriX, coeff=self.hparams.lambI)
             # Identity(idt_Y, Y)
-            loss_g += self.add_loss_L1(a=self.idt_Y, b=self.oriY, coeff=self.hparams.lambI)
+            loss_g += self.add_loss_l1(a=self.idt_Y, b=self.oriY, coeff=self.hparams.lambI)
 
         return {'sum': loss_g, 'loss_g': loss_g}
 
@@ -86,6 +86,6 @@ class GAN(BaseModel):
 
 
 # USAGE
-# CUDA_VISIBLE_DEVICES=1 python train.py --jsn wnwp3d --prj wnwp3d/cyc/GdenuOmc --mc --engine cyc -b 16 --netG descarnoumc  --direction zyori%xyori --dataset Fly0B --input_nc 1
+# CUDA_VISIBLE_DEVICES=1 python train.py --jsn wnwp3d --prj wnwp3d/cyc/GdenuOmc --mc --models cyc -b 16 --netG descarnoumc  --direction zyori%xyori --dataset Fly0B --input_nc 1
 
-# CUDA_VISIBLE_DEVICES=0,1,2,3 python train.py --jsn 40x2fly10 --prj cyc/test0 --engine cyc -b 16 --direction 40xdown2%xysb --dataset 40x --input_nc 1
+# CUDA_VISIBLE_DEVICES=0,1,2,3 python train.py --jsn 40x2fly10 --prj cyc/test1 --models cyc -b 16 --direction 40xdown2%xyori --dataset 40x --input_nc 1 --trd 500

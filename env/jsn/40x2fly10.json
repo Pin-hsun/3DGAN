@@ -5,7 +5,7 @@
             "gray": true,
             "prj": "default",
             "models": "cyc",
-            "dataset": "Fly3D",
+            "dataset": "40x",
             "train_index": false,
             "bysubject": false,
             "direction": "zyweak_zyorisb%xyweak_xyorisb",

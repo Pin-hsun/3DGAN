@@ -127,24 +127,24 @@ class GAN(BaseModel):
         loss_g = self.add_loss_adv(a=self.imgYXo, b=None, net_d=self.net_dXo, loss=loss_g, coeff=1, truth=True, stacked=False)
 
         # Cyclic(XYXw, Xw)
-        loss_g = self.add_loss_L1(a=self.imgXYXw, b=self.oriXw, loss=loss_g, coeff=self.hparams.lamb)
+        loss_g = self.add_loss_l1(a=self.imgXYXw, b=self.oriXw, loss=loss_g, coeff=self.hparams.lamb)
         # Cyclic(YXYw, Yw)
-        loss_g = self.add_loss_L1(a=self.imgYXYw, b=self.oriYw, loss=loss_g, coeff=self.hparams.lamb)
+        loss_g = self.add_loss_l1(a=self.imgYXYw, b=self.oriYw, loss=loss_g, coeff=self.hparams.lamb)
         # Cyclic(XYXo, Xo)
-        loss_g = self.add_loss_L1(a=self.imgXYXo, b=self.oriXo, loss=loss_g, coeff=self.hparams.lamb)
+        loss_g = self.add_loss_l1(a=self.imgXYXo, b=self.oriXo, loss=loss_g, coeff=self.hparams.lamb)
         # Cyclic(YXYo, Yo)
-        loss_g = self.add_loss_L1(a=self.imgYXYo, b=self.oriYo, loss=loss_g, coeff=self.hparams.lamb)
+        loss_g = self.add_loss_l1(a=self.imgYXYo, b=self.oriYo, loss=loss_g, coeff=self.hparams.lamb)
 
         # Identity(idt_X, X)
         if self.hparams.lambI > 0:
             # Identity(idt_Xw, Xw)
-            loss_g = self.add_loss_L1(a=self.idt_Xw, b=self.oriXw, loss=loss_g, coeff=self.hparams.lambI)
+            loss_g = self.add_loss_l1(a=self.idt_Xw, b=self.oriXw, loss=loss_g, coeff=self.hparams.lambI)
             # Identity(idt_Yw, Yw)
-            loss_g = self.add_loss_L1(a=self.idt_Yw, b=self.oriYw, loss=loss_g, coeff=self.hparams.lambI)
+            loss_g = self.add_loss_l1(a=self.idt_Yw, b=self.oriYw, loss=loss_g, coeff=self.hparams.lambI)
             # Identity(idt_Xo, Xo)
-            loss_g = self.add_loss_L1(a=self.idt_Xo, b=self.oriXo, loss=loss_g, coeff=self.hparams.lambI)
+            loss_g = self.add_loss_l1(a=self.idt_Xo, b=self.oriXo, loss=loss_g, coeff=self.hparams.lambI)
             # Identity(idt_Yo, Yo)
-            loss_g = self.add_loss_L1(a=self.idt_Yo, b=self.oriYo, loss=loss_g, coeff=self.hparams.lambI)
+            loss_g = self.add_loss_l1(a=self.idt_Yo, b=self.oriYo, loss=loss_g, coeff=self.hparams.lambI)
 
         if 0:
             # ADV 3D
@@ -155,8 +155,8 @@ class GAN(BaseModel):
 
         # L1 3D
         if self.hparams.lambZ > 0:
-            loss_g = self.add_loss_L1(a=self.w3d, b=self.woo, loss=loss_g, coeff=self.hparams.lambZ)
-            loss_g = self.add_loss_L1(a=self.o3d, b=self.ooo, loss=loss_g, coeff=self.hparams.lambZ)
+            loss_g = self.add_loss_l1(a=self.w3d, b=self.woo, loss=loss_g, coeff=self.hparams.lambZ)
+            loss_g = self.add_loss_l1(a=self.o3d, b=self.ooo, loss=loss_g, coeff=self.hparams.lambZ)
 
         return {'sum': loss_g, 'loss_g': loss_g}
 

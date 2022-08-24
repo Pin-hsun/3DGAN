@@ -48,10 +48,10 @@ class GAN(BaseModel):
         axy = self.add_loss_adv(a=self.imgXY, net_d=self.net_d, coeff=1, truth=True, stacked=False)
 
         # L1(XY, Y)
-        loss_l1a = self.add_loss_L1(a=self.imgXY, b=self.oriY, coeff=1)
+        loss_l1a = self.add_loss_l1(a=self.imgXY, b=self.oriY, coeff=1)
 
         # L1(XX, X)
-        loss_l1b = self.add_loss_L1(a=self.imgXX, b=self.oriX, coeff=1)
+        loss_l1b = self.add_loss_l1(a=self.imgXX, b=self.oriX, coeff=1)
 
         # ADV(X1)+
         #loss_g = self.add_loss_adv(a=self.imgX1, net_d=self.net_dY, loss=loss_g, coeff=1, truth=True, stacked=False)

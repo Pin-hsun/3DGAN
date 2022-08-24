@@ -58,19 +58,19 @@ class GAN(BaseModel):
         loss_g = self.add_loss_adv(a=self.imgYX, b=None, net_d=self.net_dX, loss=loss_g, coeff=1, truth=True, stacked=False)
 
         # Cyclic(XYX, X)
-        loss_g = self.add_loss_L1(a=self.imgXYX, b=self.oriX, loss=loss_g, coeff=self.hparams.lamb)
+        loss_g = self.add_loss_l1(a=self.imgXYX, b=self.oriX, loss=loss_g, coeff=self.hparams.lamb)
         # Cyclic(YXY, Y)
-        loss_g = self.add_loss_L1(a=self.imgYXY, b=self.oriY, loss=loss_g, coeff=self.hparams.lamb)
+        loss_g = self.add_loss_l1(a=self.imgYXY, b=self.oriY, loss=loss_g, coeff=self.hparams.lamb)
 
         # Identity(idt_X, X)
         if self.hparams.lambI > 0:
-            loss_g = self.add_loss_L1(a=self.idt_X, b=self.oriX, loss=loss_g, coeff=self.hparams.lambI)
+            loss_g = self.add_loss_l1(a=self.idt_X, b=self.oriX, loss=loss_g, coeff=self.hparams.lambI)
             # Identity(idt_Y, Y)
-            loss_g = self.add_loss_L1(a=self.idt_Y, b=self.oriY, loss=loss_g, coeff=self.hparams.lambI)
+            loss_g = self.add_loss_l1(a=self.idt_Y, b=self.oriY, loss=loss_g, coeff=self.hparams.lambI)
 
         # Segmentation
         # L1 (oriYseg, imgYXYseg)
-        loss_g = self.add_loss_L1(a=self.oriYseg, b=self.imgYXYseg, loss=loss_g, coeff=self.hparams.lamb)
+        loss_g = self.add_loss_l1(a=self.oriYseg, b=self.imgYXYseg, loss=loss_g, coeff=self.hparams.lamb)
         # ADV (imgXYseg)+
         loss_g = self.add_loss_adv(a=self.imgXYseg, net_d=self.net_dseg, loss=loss_g, coeff=1, truth=True, stacked=False)
 

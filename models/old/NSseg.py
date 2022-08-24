@@ -32,7 +32,7 @@ class GAN(BaseModel):
         loss_g = self.add_loss_adv(a=self.imgX0, b=self.oriXseg, net_d=self.net_d, loss=loss_g, coeff=1, truth=True, stacked=True)
 
         # L1(X0, Y)
-        loss_g = self.add_loss_L1(a=self.imgX0, b=self.oriY, loss=loss_g, coeff=self.hparams.lamb)
+        loss_g = self.add_loss_l1(a=self.imgX0, b=self.oriY, loss=loss_g, coeff=self.hparams.lamb)
 
         return {'sum': loss_g, 'loss_g': loss_g}
 

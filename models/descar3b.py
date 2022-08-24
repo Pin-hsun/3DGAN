@@ -64,7 +64,7 @@ class GAN(GANbase):
         #ayx, cyx = self.add_loss_adv_classify(a=self.imgYX, net_d=self.net_d, truth_adv=True, truth_classify=True)
 
         # L1(XY, Y)
-        loss_l1 = self.add_loss_L1(a=self.imgXY, b=self.oriY, coeff=self.hparams.lamb)
+        loss_l1 = self.add_loss_l1(a=self.imgXY, b=self.oriY, coeff=self.hparams.lamb)
 
         loss_ga = axy
         #loss_gc = cxy + cxx + cyy + cyx

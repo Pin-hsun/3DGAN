@@ -57,7 +57,7 @@ class BaseModel(pl.LightningModule):
         self.save_hyperparameters(self.hparams)
 
         # set networks
-        self.set_networks()
+        self.net_g, self.net_d = self.set_networks()
 
         # Optimizer and scheduler
         [self.optimizer_d, self.optimizer_g], [self.net_d_scheduler, self.net_g_scheduler] = self.configure_optimizers()
@@ -78,103 +78,6 @@ class BaseModel(pl.LightningModule):
         self.all_label = []
         self.all_out = []
 
-    def set_networks(self):
-        # GENERATOR
-        if self.hparams.netG == 'attgan':
-            from networks.AttGAN.attgan import Generator
-            print('use attgan generator')
-            self.net_g = Generator(n_in=self.hparams.input_nc, enc_dim=self.hparams.ngf, dec_dim=self.hparams.ngf,
-                                   n_attrs=self.hparams.n_attrs, img_size=256,
-                                   enc_norm_fn=self.hparams.norm, dec_norm_fn=self.hparams.norm,
-                                   final=self.hparams.final)
-            self.net_g_inc = 1
-
-        elif (self.hparams.netG).startswith('de'):
-            print('descar generator: ' + self.hparams.netG)
-            Generator = getattr(getattr(__import__('networks.DeScarGan.' + self.hparams.netG), 'DeScarGan'),
-                                self.hparams.netG).Generator
-            # descargan only has options for batchnorm or none
-            if self.hparams.norm == 'batch':
-                usebatch = True
-            elif self.hparams.norm == 'none':
-                usebatch = False
-            self.net_g = Generator(n_channels=self.hparams.input_nc, out_channels=self.hparams.output_nc, batch_norm=usebatch, final=self.hparams.final,
-                                   mc=self.hparams.mc)
-            self.net_g_inc = 2
-        elif (self.hparams.netG).startswith('ds'):
-            print('descar generator: ' + self.hparams.netG)
-            Generator = getattr(getattr(__import__('networks.DSGan.' + self.hparams.netG), 'DSGan'),
-                                self.hparams.netG).Generator
-            # descargan only has options for batchnorm or none
-            if self.hparams.norm == 'batch':
-                usebatch = True
-            elif self.hparams.norm == 'none':
-                usebatch = False
-            self.net_g = Generator(n_channels=self.hparams.input_nc, out_channels=self.hparams.output_nc, batch_norm=usebatch, final=self.hparams.final,
-                                   mc=self.hparams.mc)
-            self.net_g_inc = 2
-        elif self.hparams.netG == 'ugatit':
-            from networks.ugatit.networks import ResnetGenerator
-            print('use ugatit generator')
-            self.net_g = ResnetGenerator(input_nc=self.hparams.input_nc,
-                                         output_nc=self.hparams.output_nc, ngf=self.hparams.ngf,
-                                         n_blocks=4, img_size=128, light=True)
-            self.net_g_inc = 0
-        elif self.hparams.netG == 'genre':
-            from networks.genre.generator.Unet_base import SPADEUNet2s
-            opt = Namespace(input_size=128, parsing_nc=1, norm_G='spectralspadebatch3x3', spade_mode='res2',
-                            use_en_feature=False)
-            self.net_g = SPADEUNet2s(opt=opt, in_channels=1, out_channels=1)
-        else:
-            from networks.networks import define_G
-            self.net_g = define_G(input_nc=self.hparams.input_nc, output_nc=self.hparams.output_nc,
-                                  ngf=self.hparams.ngf, netG=self.hparams.netG,
-                                  norm=self.hparams.norm, use_dropout=self.hparams.mc, init_type='normal', init_gain=0.02, gpu_ids=[],
-                                  final=self.hparams.final)
-            self.net_g_inc = 0
-
-        # DISCRIMINATOR
-        if (self.hparams.netD).startswith('patch'):  # Patchgan from cyclegan (the pix2pix one is strange)
-            from networks.cyclegan.models import Discriminator
-            self.net_d = Discriminator(input_shape=(self.hparams.output_nc * 2, 256, 256), patch=int((self.hparams.netD).split('_')[-1]))
-        elif (self.hparams.netD).startswith('bpatch'):  # Patchgan from cyclegan (the pix2pix one is strange)
-            from networks.cyclegan.modelsb import Discriminator
-            self.net_d = Discriminator(input_shape=(self.hparams.output_nc * 2, 256, 256), patch=int((self.hparams.netD).split('_')[-1]))
-        elif self.hparams.netD == 'sagan':
-            from networks.sagan.sagan import Discriminator
-            print('use sagan discriminator')
-            self.net_d = Discriminator(image_size=64)
-        elif self.hparams.netD == 'acgan':
-            from networks.acgan import Discriminator
-            print('use acgan discriminator')
-            self.net_d = Discriminator(img_shape=(self.hparams.input_nc_nc * 2, 256, 256), n_classes=2)
-        elif self.hparams.netD == 'attgan':
-            from networks.AttGAN.attgan import Discriminators
-            print('use attgan discriminator')
-            self.net_d = Discriminators(img_size=256, cls=2)
-        elif self.hparams.netD == 'descar':
-            from networks.DeScarGan.descargan import Discriminator
-            print('use descargan discriminator')
-            self.net_d = Discriminator(n_channels=self.hparams.input_nc * 2)
-        elif self.hparams.netD == 'ugatit':
-            from networks.ugatit.networks import Discriminator
-            print('use ugatit discriminator')
-            self.net_d = Discriminator(self.hparams.input_nc * 2, ndf=64, n_layers=5)
-        # original pix2pix, the size of patchgan is strange, just use for pixel-D
-        else:
-            from networks.networks import define_D
-            self.net_d = define_D(input_nc=self.hparams.output_nc * 2, ndf=64, netD=self.hparams.netD)
-
-        # Init. Network Parameters
-        if self.hparams.netG == 'genre':
-            print('no init netG of genre')
-        else:
-            self.net_g = self.net_g.apply(_weights_init)
-        if self.hparams.netD == 'sagan':
-            print('no init netD of sagan')
-        else:
-            self.net_d = self.net_d.apply(_weights_init)
-
     def configure_optimizers(self):
         netg_parameters = []
         for g in self.netg_names.keys():
@@ -191,7 +94,7 @@ class BaseModel(pl.LightningModule):
 
         return [self.optimizer_d, self.optimizer_g], [self.net_d_scheduler, self.net_g_scheduler]
 
-    def add_loss_adv(self, a, net_d, coeff, truth, b=None, log=None, stacked=False):
+    def add_loss_adv(self, a, net_d, coeff, truth, b=None, stacked=False):
         if stacked:
             fake_in = torch.cat((a, b), 1)
         else:
@@ -201,25 +104,26 @@ class BaseModel(pl.LightningModule):
             adv = self.criterionGAN(disc_logits, torch.ones_like(disc_logits))
         else:
             adv = self.criterionGAN(disc_logits, torch.zeros_like(disc_logits))
-        if log is not None:
-            self.log(log, adv, on_step=False, on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
         return coeff * adv
 
-    def add_loss_L1(self, a, b, coeff, log=None):
+    def add_loss_l1(self, a, b, coeff):
         l1 = self.criterionL1(a, b)
-        if log is not None:
-            self.log(log, l1, on_step=False, on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
         return coeff * l1
+
+    @staticmethod
+    def reshape_3d(img3d):
+        if len(img3d[0].shape) == 5:
+            for i in range(len(img3d)):
+                (B, C, H, W, Z) = img3d[i].shape
+                img3d[i] = img3d[i].permute(0, 4, 1, 2, 3)
+                img3d[i] = img3d[i].reshape(B * Z, C, H, W)
+        return img3d
 
     def training_step(self, batch, batch_idx, optimizer_idx):
         self.batch_idx = batch_idx
         self.batch = batch
-        if self.hparams.bysubject:  # if working on 3D input
-            if len(self.batch['img'][0].shape) == 5:
-                for i in range(len(self.batch['img'])):
-                    (B, C, H, W, Z) = self.batch['img'][i].shape
-                    self.batch['img'][i] = self.batch['img'][i].permute(0, 4, 1, 2, 3)
-                    self.batch['img'][i] = self.batch['img'][i].reshape(B * Z, C, H, W)
+        if self.hparams.load3d:  # if working on 3D input, bring the Z dimension to the first and combine with batch
+            self.batch['img'] = self.reshape_3d(self.batch['img'])
 
         if optimizer_idx == 0:
             imgs = self.generation()
@@ -260,10 +164,108 @@ class BaseModel(pl.LightningModule):
         self.all_out = []
 
     def generation(self):
-        return 0
+        pass
 
     def backward_g(self, inputs):
-        return 0
+        pass
 
     def backward_d(self, inputs):
-        return 0
+        pass
+
+    def set_networks(self):
+        # GENERATOR
+        if self.hparams.netG == 'attgan':
+            from networks.AttGAN.attgan import Generator
+            print('use attgan generator')
+            net_g = Generator(n_in=self.hparams.input_nc, enc_dim=self.hparams.ngf, dec_dim=self.hparams.ngf,
+                              n_attrs=self.hparams.n_attrs, img_size=256,
+                              enc_norm_fn=self.hparams.norm, dec_norm_fn=self.hparams.norm,
+                              final=self.hparams.final)
+            #self.net_g_inc = 1
+        elif (self.hparams.netG).startswith('de'):
+            print('descar generator: ' + self.hparams.netG)
+            Generator = getattr(getattr(__import__('networks.DeScarGan.' + self.hparams.netG), 'DeScarGan'),
+                                self.hparams.netG).Generator
+            # descargan only has options for batchnorm or none
+            if self.hparams.norm == 'batch':
+                usebatch = True
+            elif self.hparams.norm == 'none':
+                usebatch = False
+            net_g = Generator(n_channels=self.hparams.input_nc, out_channels=self.hparams.output_nc,
+                              batch_norm=usebatch, final=self.hparams.final,
+                              mc=self.hparams.mc)
+            #self.net_g_inc = 2
+        elif (self.hparams.netG).startswith('ds'):
+            print('descar generator: ' + self.hparams.netG)
+            Generator = getattr(getattr(__import__('networks.DSGan.' + self.hparams.netG), 'DSGan'),
+                                self.hparams.netG).Generator
+            # descargan only has options for batchnorm or none
+            if self.hparams.norm == 'batch':
+                usebatch = True
+            elif self.hparams.norm == 'none':
+                usebatch = False
+            net_g = Generator(n_channels=self.hparams.input_nc, out_channels=self.hparams.output_nc,
+                              batch_norm=usebatch, final=self.hparams.final, mc=self.hparams.mc)
+            #self.net_g_inc = 2
+        elif self.hparams.netG == 'ugatit':
+            from networks.ugatit.networks import ResnetGenerator
+            print('use ugatit generator')
+            net_g = ResnetGenerator(input_nc=self.hparams.input_nc,
+                                    output_nc=self.hparams.output_nc, ngf=self.hparams.ngf,
+                                    n_blocks=4, img_size=128, light=True)
+            #self.net_g_inc = 0
+        elif self.hparams.netG == 'genre':
+            from networks.genre.generator.Unet_base import SPADEUNet2s
+            opt = Namespace(input_size=128, parsing_nc=1, norm_G='spectralspadebatch3x3', spade_mode='res2',
+                            use_en_feature=False)
+            net_g = SPADEUNet2s(opt=opt, in_channels=1, out_channels=1)
+        else:
+            from networks.networks import define_G
+            net_g = define_G(input_nc=self.hparams.input_nc, output_nc=self.hparams.output_nc,
+                             ngf=self.hparams.ngf, netG=self.hparams.netG,
+                             norm=self.hparams.norm, use_dropout=self.hparams.mc, init_type='normal', init_gain=0.02, gpu_ids=[],
+                             final=self.hparams.final)
+            #self.net_g_inc = 0
+
+        # DISCRIMINATOR
+        if (self.hparams.netD).startswith('patch'):  # Patchgan from cyclegan (the pix2pix one is strange)
+            from networks.cyclegan.models import Discriminator
+            net_d = Discriminator(input_shape=(self.hparams.output_nc * 2, 256, 256), patch=int((self.hparams.netD).split('_')[-1]))
+        elif (self.hparams.netD).startswith('bpatch'):  # Patchgan from cyclegan (the pix2pix one is strange)
+            from networks.cyclegan.modelsb import Discriminator
+            net_d = Discriminator(input_shape=(self.hparams.output_nc * 2, 256, 256), patch=int((self.hparams.netD).split('_')[-1]))
+        elif self.hparams.netD == 'sagan':
+            from networks.sagan.sagan import Discriminator
+            print('use sagan discriminator')
+            net_d = Discriminator(image_size=64)
+        elif self.hparams.netD == 'acgan':
+            from networks.acgan import Discriminator
+            print('use acgan discriminator')
+            net_d = Discriminator(img_shape=(self.hparams.input_nc_nc * 2, 256, 256), n_classes=2)
+        elif self.hparams.netD == 'attgan':
+            from networks.AttGAN.attgan import Discriminators
+            print('use attgan discriminator')
+            net_d = Discriminators(img_size=256, cls=2)
+        elif self.hparams.netD == 'descar':
+            from networks.DeScarGan.descargan import Discriminator
+            print('use descargan discriminator')
+            net_d = Discriminator(n_channels=self.hparams.input_nc * 2)
+        elif self.hparams.netD == 'ugatit':
+            from networks.ugatit.networks import Discriminator
+            print('use ugatit discriminator')
+            net_d = Discriminator(self.hparams.input_nc * 2, ndf=64, n_layers=5)
+        # original pix2pix, the size of patchgan is strange, just use for pixel-D
+        else:
+            from networks.networks import define_D
+            net_d = define_D(input_nc=self.hparams.output_nc * 2, ndf=64, netD=self.hparams.netD)
+
+        # Init. Network Parameters
+        if self.hparams.netG == 'genre':
+            print('no init netG of genre')
+        else:
+            net_g = net_g.apply(_weights_init)
+        if self.hparams.netD == 'sagan':
+            print('no init netD of sagan')
+        else:
+            net_d = net_d.apply(_weights_init)
+        return net_g, net_d

@@ -32,7 +32,7 @@ class GAN(BaseModel):
         # L1(X0, Y)
         a = torch.mul((self.oriX > 0.1), self.imgX0)
         b = torch.mul((self.oriX > 0.1), self.oriY)
-        loss_g = self.add_loss_L1(a=a, b=b, loss=loss_g, coeff=self.hparams.lamb)
+        loss_g = self.add_loss_l1(a=a, b=b, loss=loss_g, coeff=self.hparams.lamb)
 
         return {'sum': loss_g, 'loss_g': loss_g}
 

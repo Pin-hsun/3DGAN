@@ -4,6 +4,7 @@ from PIL import Image
 from skimage import data, io
 import matplotlib.pyplot as plt
 
+
 def print_num_of_parameters(net):
     model_parameters = filter(lambda p: p.requires_grad, net.parameters())
     print('Number of parameters: ' + str(sum([np.prod(p.size()) for p in model_parameters])))
@@ -56,3 +57,6 @@ def purge_logs():
     for i in range(len(list_version)):
         if checkpoint_epochs[i] < 60:
             os.system('rm -rf ' + list_version[i])
+
+
+

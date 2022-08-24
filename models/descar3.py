@@ -72,7 +72,7 @@ class GAN(BaseModel):
         #ayx, cyx = self.add_loss_adv_classify(a=self.imgYX, net_d=self.net_d, truth_adv=True, truth_classify=True)
 
         # L1(XY, Y)
-        loss_l1 = self.add_loss_L1(a=self.imgXY, b=self.oriY, coeff=self.hparams.lamb)
+        loss_l1 = self.add_loss_l1(a=self.imgXY, b=self.oriY, coeff=self.hparams.lamb)
 
         loss_ga = axy
         #loss_gc = cxy + cxx + cyy + cyx
@@ -114,12 +114,10 @@ class GAN(BaseModel):
 
     def validation_step(self, batch, batch_idx):
         self.batch = batch
-        if self.hparams.bysubject:  # if working on 3D input
-            if len(self.batch['img'][0].shape) == 5:
-                for i in range(len(self.batch['img'])):
-                    (B, C, H, W, Z) = self.batch['img'][i].shape
-                    self.batch['img'][i] = self.batch['img'][i].permute(0, 4, 1, 2, 3)
-                    self.batch['img'][i] = self.batch['img'][i].reshape(B * Z, C, H, W)
+        if self.hparams.load3d:  # if working on 3D input
+            self.batch = batch
+            if self.hparams.load3d:  # if working on 3D input, bring the Z dimension to the first and combine with batch
+                self.batch['img'] = self.reshape_3d(self.batch['img'])
 
         img = self.batch['img']
         self.filenames = self.batch['filenames']
@@ -250,5 +248,6 @@ class GAN(BaseModel):
         return adv_a, adv_b, classify, classify_logits
 
 
-# CUDA_VISIBLE_DEVICES=0,1,2 python train.py --jsn womac3 --prj Gds/descar3/Gdsmc3DB --mc --engine descar3 --netG dsmc --netD descar --direction areg_b --index --gray --bysubject --final none
-# CUDA_VISIBLE_DEVICES=0,1,2,3 python train.py --env  a6k --jsn womac3 --prj Gds/descar3b/GdsmcDboatch16 --mc --engine descar3b --netG dsmc --netD bpatch_16 --direction ap_bp --index --bysubject --final none
+# CUDA_VISIBLE_DEVICES=0,1,2 python train.py --jsn womac3 --prj Gds/descar3/Gdsmc3DB --mc --engine descar3 --netG dsmc --netD descar --direction areg_b --index --gray --load3d --final none
+# CUDA_VISIBLE_DEVICES=0,1,2,3 python train.py --env  a6k --jsn womac3 --prj Gds/descar3b/GdsmcDboatch16 --mc --engine descar3b --netG dsmc --netD bpatch_16 --direction ap_bp --index --load3d --final none
+# CUDA_VISIBLE_DEVICES=0,1,2,3 python train.py --env  a6k --jsn womac3 --prj Gds/descar3/check  --models descar3 --netG descarganshallow --netD bpatch_16 --direction ap_bp --final none -b 1 --split moaks

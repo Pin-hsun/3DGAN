@@ -17,3 +17,4 @@ def get_activation(fn):
         return nn.Tanh
     else:
         raise Exception('Unsupported activation function: ' + str(fn))
+

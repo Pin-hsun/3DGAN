@@ -5,8 +5,7 @@
             "prj": "default",
             "models": "NS",
             "dataset": "womac3",
-            "train_index": [213, 710, 1],
-            "bysubject": true,
+            "load3d": true,
             "direction": "areg_b",
             "flip": false,
             "resize": 0,
@@ -48,6 +47,7 @@
         {
             "dataset": "womac3",
             "testset": "womac3/full/",
+            "load3d": false,
             "unpaired": false,
             "direction": "a_b",
             "prj": "verify/descar2/Gdescarsmc",

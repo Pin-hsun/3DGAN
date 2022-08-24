@@ -91,7 +91,7 @@ class MultiData(data.Dataset):
         paired_path = path.split('%')
         self.subset = []
         for p in range(len(paired_path)):
-            if self.opt.bysubject:
+            if self.opt.load3d:
                 self.subset.append(PairedData3D(root=root, path=paired_path[p],
                                                 opt=opt, mode=mode, labels=labels, transforms=transforms, filenames=filenames, index=index))
             else:
@@ -281,7 +281,7 @@ class PairedData3D(PairedData):
 
 
 class PairedDataTif(data.Dataset):
-    def __init__(self, root, directions, permute=None, crop=None):
+    def __init__(self, root, directions, permute=None, crop=None, trd=None):
         self.directions = directions.split('_')
 
         self.tif = []
@@ -291,7 +291,14 @@ class PairedDataTif(data.Dataset):
             else:
                 tif = tiff.imread(os.path.join(root, d + '.tif'))
             tif = tif.astype(np.float32)
-            tif = tif / tif.max()
+
+            if trd > 0:
+                tif[tif >= trd] = trd
+                tif = tif / trd
+            else:
+                if tif.max() > 0:  # scale to 0-1
+                    tif = tif / tif.max()
+
             tif = (tif * 2) - 1
             if permute is not None:
                 tif = np.transpose(tif, permute)
@@ -317,7 +324,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='pix2pix-pytorch-implementation')
     # Data
     parser.add_argument('--dataset', type=str, default='womac3/train/')
-    parser.add_argument('--bysubject', action='store_true', dest='bysubject', default=False)
+    parser.add_argument('--load3d', action='store_true', dest='load3d', default=False)
     parser.add_argument('--direction', type=str, default='areg_b', help='a2b or b2a')
     parser.add_argument('--flip', action='store_true', dest='flip', default=False, help='image flip left right')
     parser.add_argument('--resize', type=int, default=0)
@@ -346,7 +353,7 @@ if __name__ == '__main__':
         # fly3d
         root = '/media/ExtHDD01/Dataset/paired_images/Fly3D/train/' # change to your data root
         opt.n01 = False
-        opt.bysubject = True
+        opt.load3d = True
         dataset = MultiData(root=root, path='xyweak_xysb',
                             opt=opt, mode='train', filenames=True)
 

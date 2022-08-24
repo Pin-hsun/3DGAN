@@ -10,6 +10,7 @@ import json
 import pytorch_lightning as pl
 from pytorch_lightning import loggers as pl_loggers
 import pandas as pd
+from dataloader.data_multi import MultiData as Dataset
 
 
 def prepare_log(args):
@@ -34,9 +35,8 @@ parser.add_argument('--prj', type=str, help='name of the project')
 parser.add_argument('--models', dest='models', type=str, help='use which models')
 # Data
 parser.add_argument('--dataset', type=str)
-parser.add_argument('--bysubject', action='store_true', dest='bysubject', default=False, help='do 3D')
-### !!!!
-parser.add_argument('--index', action='store_true', dest='index', default=False, help='use train_index')
+parser.add_argument('--split', type=str, help='split of data')
+parser.add_argument('--load3d', action='store_true', dest='load3d', default=False, help='do 3D')
 
 parser.add_argument('--direction', type=str, help='paired: a_b, unpaired a%b ex:(a_b%c_d)')
 parser.add_argument('--flip', action='store_true', dest='flip', help='image flip left right')
@@ -67,7 +67,7 @@ parser.add_argument('-b', dest='batch_size', type=int, help='training batch size
 parser.add_argument('--n_epochs', type=int, help='# of iter at starting learning rate')
 parser.add_argument('--lr', type=float, help='initial learning rate f -or adam')
 parser.add_argument('--beta1', type=float, help='beta1 for adam. default=0.5')
-# parser.add_argument('--threads', type=int,  help='number of threads for data loader to use')  # NOT IN USE?
+parser.add_argument('--threads', type=int,  help='number of threads for data loader to use')
 parser.add_argument('--epoch_count', type=int, help='the starting epoch count')
 parser.add_argument('--epoch_load', type=int, help='to load checkpoint form the epoch count')
 parser.add_argument('--n_epochs_decay', type=int, help='# of iter to linearly decay learning rate to zero')
@@ -78,7 +78,6 @@ parser.add_argument('--save_d', action='store_true', dest='save_d', default=Fals
 parser.add_argument('--lamb', type=int, help='weight on L1 term in objective')
 # Misc
 parser.add_argument('--seed', type=int, help='random seed to use. Default=123')
-# parser.add_argument('--legacy', action='store_true', dest='legacy', default=False, help='legacy pytorch')  # NOT IN USE?
 parser.add_argument('--mode', type=str, default='dummy')
 parser.add_argument('--port', type=str, default='dummy')
 
@@ -98,45 +97,26 @@ if args.env is not None:
     load_dotenv('env/.' + args.env)
 else:
     load_dotenv('env/.t09')
-print(os.environ.get('LOGS'))
 
 # Finalize Arguments and create files for logging
 args = prepare_log(args)
 
-#  Define Dataset Class
-from dataloader.data_multi import MultiData as Dataset
-
 # Load Dataset and DataLoader
-# THIS IS TRASH. I WAS TRYING TO SPLIT OAI DATA ON THE FLY
-if args.index:  # if use customized index
-    folder = '/full/'
-    # train_index = range(*args.train_index)
-    # new index
-    #df = pd.read_csv(os.getenv("HOME") + '/Dropbox/TheSource/scripts/OAI_pipelines/meta/subjects_unipain_womac3.csv')
-    df = pd.read_csv('env/subjects_unipain_womac3.csv')
-    #train_index = [x for x in range(df.shape[0]) if not df['has_moaks'][x]]
-    #test_index = [x for x in range(df.shape[0]) if df['has_moaks'][x]]
-    # train_index = range(213, 710)
-    # eval_index = range(0, 213)
-    train_index = range(0, 497)
-    test_index = range(497, 710)
-else:
-    folder = '/train/'
-    train_index = None
+from env.custom_data_utils import customize_data_split
+folder, train_index, test_index = customize_data_split(dataset=args.dataset, split=args.split)
 
 train_set = Dataset(root=os.environ.get('DATASET') + args.dataset + folder,
                     path=args.direction,
                     opt=args, mode='train', index=train_index, filenames=True)
 train_loader = DataLoader(dataset=train_set, num_workers=args.threads, batch_size=args.batch_size, shuffle=True, pin_memory=True)
 
-if args.index:
+if test_index is not None:
     test_set = Dataset(root=os.environ.get('DATASET') + args.dataset + folder,
-                        path=args.direction,
-                        opt=args, mode='train', index=test_index, filenames=True)
+                       path=args.direction,
+                       opt=args, mode='test', index=test_index, filenames=True)
     test_loader = DataLoader(dataset=test_set, num_workers=args.threads, batch_size=args.batch_size, shuffle=False, pin_memory=True)
 else:
     test_loader = None
-
 
 
 #val_set = Dataset(root=os.environ.get('DATASET') + args.dataset + '/test/',
@@ -162,11 +142,10 @@ print(args)
 trainer.fit(net, train_loader, test_loader)  # test loader not used during training
 
 
-# Example Usage
+# Examples of  Usage
 # CUDA_VISIBLE_DEVICES=1 python train.py --dataset TSE_DESS -b 16 --prj VryCycle --direction a_b --resize 286 --models cyclegan --lamb 10 --unpaired
 # CUDA_VISIBLE_DEVICES=1 python train.py --dataset pain -b 16 --prj VryNS4B --direction aregis1_b --resize 286 --models NS4 --netG attgan
 # CUDA_VISIBLE_DEVICES=0 python train.py --dataset FlyZ -b 16 --prj WpWn286B --direction xyweak%zyweak --resize 286 --models cyclegan --lamb 10
 # CUDA_VISIBLE_DEVICES=1 python train.py --dataset FlyZ -b 16 --prj WpOp256Mask --direction xyweak_xyorisb --resize 256 --models pix2pixNS
-
 # CUDA_VISIBLE_DEVICES=0 python train.py --jsn womac3 --prj mcfix/descar2/Gunet128 --models descar2 --netG unet_128 --mc --direction areg_b --index
 # CUDA_VISIBLE_DEVICES=0 python train.py --dataset womac3 -b 1 --prj bysubjectright/descar2/GDdescars --direction areg_b --cropsize 256 --models descar2 --netG descars --netD descar --n01 --final sigmoid --cmb mul --bysubject

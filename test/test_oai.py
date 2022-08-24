@@ -1,6 +1,6 @@
 from __future__ import print_function
 import argparse, json
-import os
+import os, sys
 from utils.data_utils import imagesc
 import torch
 from torchvision.utils import make_grid
@@ -16,6 +16,7 @@ import tifffile as tiff
 import numpy as np
 import matplotlib.pyplot as plt
 cm = plt.get_cmap('viridis')
+sys.path.insert(0, './models')
 
 
 def to_heatmap(x):
@@ -97,7 +98,7 @@ class Pix2PixModel:
 
         # test_method
         engine = args.engine
-        test_method = getattr(__import__('engine.' + engine), engine).GAN.test_method
+        test_method = getattr(__import__('models.' + engine), engine).GAN.test_method
 
         output = test_method(self, self.net_g, img)
         combined = combine(output, in_img, args.cmb)
@@ -202,7 +203,7 @@ parser.add_argument('--jsn', type=str, default='womac3', help='name of ini file'
 parser.add_argument('--dataset', help='name of training dataset')
 parser.add_argument('--engine', dest='engine', type=str, help='use which engine')
 parser.add_argument('--testset', help='name of testing dataset if different than the training dataset')
-parser.add_argument('--bysubject', action='store_true', dest='bysubject')
+parser.add_argument('--load3d', action='store_true', dest='load3d')
 parser.add_argument('--gray', action='store_true', dest='gray', help='dont copy img to 3 channel')
 parser.add_argument('--notgray', action='store_false', dest='gray', help='dont copy img to 3 channel')
 parser.add_argument('--prj', type=str, help='model')
