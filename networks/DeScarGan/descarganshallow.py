@@ -64,7 +64,7 @@ class Generator(nn.Module):
         #    self.conv7_k[-1] = self.conv7_k[-1][:-1]
         #    self.conv7_g[-1] = self.conv7_g[-1][:-1]
 
-    def forward(self, xori, a):
+    def forward(self, xori, a=None):
         x = 1 * xori
         # c: (B, C)
         self.c_dim = 0

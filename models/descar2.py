@@ -45,7 +45,7 @@ class GAN(BaseModel):
 
     def backward_g(self, inputs):
         # ADV(XY)+
-        axy = self.add_loss_adv(a=self.imgXY, net_d=self.net_d, coeff=1, truth=True, stacked=False)
+        axy = self.add_loss_adv(a=self.imgXY, net_d=self.net_d, coeff=1, truth=True)
 
         # L1(XY, Y)
         loss_l1a = self.add_loss_l1(a=self.imgXY, b=self.oriY, coeff=1)
@@ -54,7 +54,7 @@ class GAN(BaseModel):
         loss_l1b = self.add_loss_l1(a=self.imgXX, b=self.oriX, coeff=1)
 
         # ADV(X1)+
-        #loss_g = self.add_loss_adv(a=self.imgX1, net_d=self.net_dY, loss=loss_g, coeff=1, truth=True, stacked=False)
+        #loss_g = self.add_loss_adv(a=self.imgX1, net_d=self.net_dY, loss=loss_g, coeff=1, truth=True)
 
         # L1(X0, X1)
         #loss_g = self.add_loss_L1(a=self.imgX0, b=self.imgX1, loss=loss_g, coeff=self.hparams.lamb * 0.1)
@@ -68,13 +68,13 @@ class GAN(BaseModel):
 
     def backward_d(self, inputs):
         # ADV(X0)-
-        axy = self.add_loss_adv(a=self.imgXY, net_d=self.net_d, coeff=1, truth=False, stacked=False)
+        axy = self.add_loss_adv(a=self.imgXY, net_d=self.net_d, coeff=1, truth=False)
 
         # ADV(Y)+
         ay = self.add_loss_adv(a=self.oriY, net_d=self.net_d, coeff=1, truth=True)
 
         # ADV(X1)-
-        #loss_d = self.add_loss_adv(a=self.imgX1, net_d=self.net_dY, loss=loss_d, coeff=0.5, truth=False, stacked=False)
+        #loss_d = self.add_loss_adv(a=self.imgX1, net_d=self.net_dY, loss=loss_d, coeff=0.5, truth=False)
 
         # ADV(X)+
         #loss_d = self.add_loss_adv(a=self.oriX, net_d=self.net_dY, loss=loss_d, coeff=0.5, truth=True)

@@ -58,13 +58,13 @@ class GAN(BaseModel):
     def backward_g(self, inputs):
         loss_g = 0
         # ADV(XYw)+
-        loss_g += self.add_loss_adv(a=self.imgXYw, b=None, net_d=self.net_dYw, coeff=1, truth=True, stacked=False)
+        loss_g += self.add_loss_adv(a=self.imgXYw, net_d=self.net_dYw, coeff=1, truth=True)
         # ADV(YXw)+
-        loss_g += self.add_loss_adv(a=self.imgYXw, b=None, net_d=self.net_dXw, coeff=1, truth=True, stacked=False)
+        loss_g += self.add_loss_adv(a=self.imgYXw, net_d=self.net_dXw, coeff=1, truth=True)
         # ADV(XYo)+
-        loss_g += self.add_loss_adv(a=self.imgXYo, b=None, net_d=self.net_dYo, coeff=1, truth=True, stacked=False)
+        loss_g += self.add_loss_adv(a=self.imgXYo, net_d=self.net_dYo, coeff=1, truth=True)
         # ADV(YXo)+
-        loss_g += self.add_loss_adv(a=self.imgYXo, b=None, net_d=self.net_dXo, coeff=1, truth=True, stacked=False)
+        loss_g += self.add_loss_adv(a=self.imgYXo, net_d=self.net_dXo, coeff=1, truth=True)
 
         # Cyclic(XYXw, Xw)
         loss_g += self.add_loss_l1(a=self.imgXYXw, b=self.oriXw, coeff=self.hparams.lamb)
@@ -91,20 +91,20 @@ class GAN(BaseModel):
     def backward_d(self, inputs):
         loss_d = 0
         # ADV(XY)-
-        loss_d += self.add_loss_adv(a=self.imgXYw, net_d=self.net_dYw, coeff=1, truth=False, stacked=False)
-        loss_d += self.add_loss_adv(a=self.imgXYo, net_d=self.net_dYo, coeff=1, truth=False, stacked=False)
+        loss_d += self.add_loss_adv(a=self.imgXYw, net_d=self.net_dYw, coeff=1, truth=False)
+        loss_d += self.add_loss_adv(a=self.imgXYo, net_d=self.net_dYo, coeff=1, truth=False)
 
         # ADV(YX)-
-        loss_d += self.add_loss_adv(a=self.imgYXw, net_d=self.net_dXw, coeff=1, truth=False, stacked=False)
-        loss_d += self.add_loss_adv(a=self.imgYXo, net_d=self.net_dXo, coeff=1, truth=False, stacked=False)
+        loss_d += self.add_loss_adv(a=self.imgYXw, net_d=self.net_dXw, coeff=1, truth=False)
+        loss_d += self.add_loss_adv(a=self.imgYXo, net_d=self.net_dXo, coeff=1, truth=False)
 
         # ADV(Y)+
-        loss_d += self.add_loss_adv(a=self.oriYw, net_d=self.net_dYw, coeff=1, truth=True, stacked=False)
-        loss_d += self.add_loss_adv(a=self.oriYo, net_d=self.net_dYo, coeff=1, truth=True, stacked=False)
+        loss_d += self.add_loss_adv(a=self.oriYw, net_d=self.net_dYw, coeff=1, truth=True)
+        loss_d += self.add_loss_adv(a=self.oriYo, net_d=self.net_dYo, coeff=1, truth=True)
 
         # ADV(X)+
-        loss_d += self.add_loss_adv(a=self.oriXw, net_d=self.net_dXw, coeff=1, truth=True, stacked=False)
-        loss_d += self.add_loss_adv(a=self.oriXo, net_d=self.net_dXo, coeff=1, truth=True, stacked=False)
+        loss_d += self.add_loss_adv(a=self.oriXw, net_d=self.net_dXw, coeff=1, truth=True)
+        loss_d += self.add_loss_adv(a=self.oriXo, net_d=self.net_dXo, coeff=1, truth=True)
 
         return {'sum': loss_d, 'loss_d': loss_d}
 

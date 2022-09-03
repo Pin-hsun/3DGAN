@@ -59,8 +59,12 @@ class BaseModel(pl.LightningModule):
         # set networks
         self.net_g, self.net_d = self.set_networks()
 
+
         # Optimizer and scheduler
-        [self.optimizer_d, self.optimizer_g], [self.net_d_scheduler, self.net_g_scheduler] = self.configure_optimizers()
+
+        [self.optimizer_d, self.optimizer_g], _ = self.configure_optimizers()
+        self.net_g_scheduler = get_scheduler(self.optimizer_g, self.hparams)
+        self.net_d_scheduler = get_scheduler(self.optimizer_d, self.hparams)
 
         # Define Loss Functions
         self.CELoss = CrossEntropyLoss()
@@ -89,17 +93,13 @@ class BaseModel(pl.LightningModule):
 
         self.optimizer_g = optim.Adam(netg_parameters, lr=self.hparams.lr, betas=(self.hparams.beta1, 0.999))
         self.optimizer_d = optim.Adam(netd_parameters, lr=self.hparams.lr, betas=(self.hparams.beta1, 0.999))
-        self.net_g_scheduler = get_scheduler(self.optimizer_g, self.hparams)
-        self.net_d_scheduler = get_scheduler(self.optimizer_d, self.hparams)
+        #self.net_g_scheduler = get_scheduler(self.optimizer_g, self.hparams)
+        #self.net_d_scheduler = get_scheduler(self.optimizer_d, self.hparams)
 
-        return [self.optimizer_d, self.optimizer_g], [self.net_d_scheduler, self.net_g_scheduler]
+        return [self.optimizer_d, self.optimizer_g], []#[self.net_d_scheduler, self.net_g_scheduler]
 
-    def add_loss_adv(self, a, net_d, coeff, truth, b=None, stacked=False):
-        if stacked:
-            fake_in = torch.cat((a, b), 1)
-        else:
-            fake_in = torch.cat((a, a), 1)
-        disc_logits = net_d(fake_in)[0]
+    def add_loss_adv(self, a, net_d, coeff, truth):
+        disc_logits = net_d(a)[0]
         if truth:
             adv = self.criterionGAN(disc_logits, torch.ones_like(disc_logits))
         else:
@@ -181,7 +181,6 @@ class BaseModel(pl.LightningModule):
                               n_attrs=self.hparams.n_attrs, img_size=256,
                               enc_norm_fn=self.hparams.norm, dec_norm_fn=self.hparams.norm,
                               final=self.hparams.final)
-            #self.net_g_inc = 1
         elif (self.hparams.netG).startswith('de'):
             print('descar generator: ' + self.hparams.netG)
             Generator = getattr(getattr(__import__('networks.DeScarGan.' + self.hparams.netG), 'DeScarGan'),
@@ -194,7 +193,6 @@ class BaseModel(pl.LightningModule):
             net_g = Generator(n_channels=self.hparams.input_nc, out_channels=self.hparams.output_nc,
                               batch_norm=usebatch, final=self.hparams.final,
                               mc=self.hparams.mc)
-            #self.net_g_inc = 2
         elif (self.hparams.netG).startswith('ds'):
             print('descar generator: ' + self.hparams.netG)
             Generator = getattr(getattr(__import__('networks.DSGan.' + self.hparams.netG), 'DSGan'),
@@ -206,14 +204,12 @@ class BaseModel(pl.LightningModule):
                 usebatch = False
             net_g = Generator(n_channels=self.hparams.input_nc, out_channels=self.hparams.output_nc,
                               batch_norm=usebatch, final=self.hparams.final, mc=self.hparams.mc)
-            #self.net_g_inc = 2
         elif self.hparams.netG == 'ugatit':
             from networks.ugatit.networks import ResnetGenerator
             print('use ugatit generator')
             net_g = ResnetGenerator(input_nc=self.hparams.input_nc,
                                     output_nc=self.hparams.output_nc, ngf=self.hparams.ngf,
                                     n_blocks=4, img_size=128, light=True)
-            #self.net_g_inc = 0
         elif self.hparams.netG == 'genre':
             from networks.genre.generator.Unet_base import SPADEUNet2s
             opt = Namespace(input_size=128, parsing_nc=1, norm_G='spectralspadebatch3x3', spade_mode='res2',
@@ -225,14 +221,16 @@ class BaseModel(pl.LightningModule):
                              ngf=self.hparams.ngf, netG=self.hparams.netG,
                              norm=self.hparams.norm, use_dropout=self.hparams.mc, init_type='normal', init_gain=0.02, gpu_ids=[],
                              final=self.hparams.final)
-            #self.net_g_inc = 0
 
         # DISCRIMINATOR
         if (self.hparams.netD).startswith('patch'):  # Patchgan from cyclegan (the pix2pix one is strange)
             from networks.cyclegan.models import Discriminator
-            net_d = Discriminator(input_shape=(self.hparams.output_nc * 2, 256, 256), patch=int((self.hparams.netD).split('_')[-1]))
+            net_d = Discriminator(input_shape=(self.hparams.output_nc * 1, 256, 256), patch=int((self.hparams.netD).split('_')[-1]))
         elif (self.hparams.netD).startswith('bpatch'):  # Patchgan from cyclegan (the pix2pix one is strange)
             from networks.cyclegan.modelsb import Discriminator
+            net_d = Discriminator(input_shape=(self.hparams.output_nc * 2, 256, 256), patch=int((self.hparams.netD).split('_')[-1]))
+        elif (self.hparams.netD).startswith('cpatch'):  # Patchgan from cyclegan (the pix2pix one is strange)
+            from networks.cyclegan.modelsc import Discriminator
             net_d = Discriminator(input_shape=(self.hparams.output_nc * 2, 256, 256), patch=int((self.hparams.netD).split('_')[-1]))
         elif self.hparams.netD == 'sagan':
             from networks.sagan.sagan import Discriminator
@@ -253,6 +251,10 @@ class BaseModel(pl.LightningModule):
         elif self.hparams.netD == 'ugatit':
             from networks.ugatit.networks import Discriminator
             print('use ugatit discriminator')
+            net_d = Discriminator(self.hparams.input_nc * 2, ndf=64, n_layers=5)
+        elif self.hparams.netD == 'ugatitb':
+            from networks.ugatit.networksb import Discriminator
+            print('use ugatitb discriminator')
             net_d = Discriminator(self.hparams.input_nc * 2, ndf=64, n_layers=5)
         # original pix2pix, the size of patchgan is strange, just use for pixel-D
         else:

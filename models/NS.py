@@ -22,10 +22,7 @@ class GAN(BaseModel):
         img = self.batch['img']
         self.oriX = img[0]
         self.oriY = img[1]
-        if self.net_g_inc > 0:
-            self.imgX0 = self.net_g(self.oriX, a=torch.zeros(self.oriX.shape[0], self.net_g_inc))[0]
-        else:
-            self.imgX0 = self.net_g(self.oriX)[0]
+        self.imgX0 = self.net_g(self.oriX)[0]
         if self.hparams.cmb is not False:
             self.imgX0 = combine(self.imgX0, self.oriX, method=self.hparams.cmb)
 

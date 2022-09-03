@@ -343,7 +343,7 @@ for epoch in range(*args.nepochs):
             os.makedirs(destination, exist_ok=True)
             tiff.imwrite(destination + names[0][0].split('/')[-1], diffseg1[0][0,::].numpy().astype(np.float32))
         else:
-            to_show = [imgX, combined, diffseg0, diffseg1]
+            to_show = [imgX, combinedall, diffseg0, diffseg1]
             #to_show = [imgX, combined, [to_rgb(x) for x in diffseg0], [to_rgb(x) for x in diffseg1]]
             to_print(to_show, save_name=os.path.join("outputs/results", args.dataset, args.prj,
                                                      str(epoch) + '_' + str(alpha) + '_' + str(ii).zfill(4) + 'm'))

@@ -39,25 +39,32 @@ class GAN(BaseModel):
 
     def test_method(self, net_g, img):
         self.oriX = img[0]
-        self.imgXY, self.imgXX = net_g(self.oriX, a=None)
-        self.imgXY = nn.Sigmoid()(self.imgXY)  # mask
-        self.imgXY = combine(self.imgXY, self.oriX, method='mul')
+        self.imgXYC, self.imgXYA = net_g(self.oriX, a=None)
+        # self.imgY0, self.imgY1 = self.net_g(self.oriY, a=torch.zeros(self.oriX.shape[0], self.net_g_inc).cuda())
+        self.imgXYA = nn.Sigmoid()(self.imgXYA)  # mask
+        self.imgXY = combine(self.imgXYC, self.imgXYA, method='mul') + combine(self.oriX, 1 - self.imgXYA, method='mul')
+        self.imgXX = combine(self.imgXYC, 1 - self.imgXYA, method='mul') + combine(self.oriX, self.imgXYA, method='mul')
 
-        return self.imgXY
+        out = self.imgXX
+
+        out[out <= 0] = 0
+        out[out >= 1] = 1
+
+        return out
 
     def generation(self):
+        ## att
         img = self.batch['img']
-        self.filenames = self.batch['filenames']
         self.oriX = img[0]
         self.oriY = img[1]
 
-        self.imgXY, self.imgXX = self.net_g(self.oriX, a=None)
-        #self.imgYY, self.imgYX = self.net_g(self.oriY, a=None)
+        self.imgXYC, self.imgXYA = self.net_g(self.oriX)
+        #self.imgY0, self.imgY1 = self.net_g(self.oriY, a=torch.zeros(self.oriX.shape[0], self.net_g_inc).cuda())
 
-        self.imgXY = nn.Sigmoid()(self.imgXY)  # mask
-        #self.imgYY = nn.Sigmoid()(self.imgYY)  # mask
-        self.imgXY = combine(self.imgXY, self.oriX, method='mul')
-        #self.imgYY = combine(self.imgYY, self.oriY, method='mul')
+        self.imgXYA = nn.Sigmoid()(self.imgXYA)  # mask
+
+        self.imgXY = combine(self.imgXYC, self.imgXYA, method='mul') + combine(self.oriX, 1 - self.imgXYA, method='mul')
+        self.imgXX = combine(self.imgXYC, 1 - self.imgXYA, method='mul') + combine(self.oriX, self.imgXYA, method='mul')
 
     def backward_g(self, inputs):
         # ADV(XY)+ -
@@ -253,5 +260,7 @@ class GAN(BaseModel):
 
 
 # CUDA_VISIBLE_DEVICES=0,1,2 python train.py --jsn womac3 --prj Gds/descar3/Gdsmc3DB --mc --engine descar3 --netG dsmc --netD descar --direction areg_b --index --gray --load3d --final none
-# CUDA_VISIBLE_DEVICES=0,1,2,3 python train.py --env  a6k --jsn womac3 --prj Gds/descar3b/GdsmcDboatch16 --mc --engine descar3b --netG dsmc --netD bpatch_16 --direction ap_bp --index --load3d --final none
-# CUDA_VISIBLE_DEVICES=0,1,2,3 python train.py --jsn womac3 --prj 3D/descar3/GdsmcDboatch16check  --models descar3 --netG dsmc --netD bpatch_16 --direction ap_bp --final none -b 1 --split moaks --final none
+# CUDA_VISIBLE_DEVICES=0,1,2,3 python train.py --jsn womac3 --prj Gds/descar3b/GdsmcDboatch16 --mc --engine descar3b --netG dsmc --netD bpatch_16 --direction ap_bp --index --load3d --final none
+# CUDA_VISIBLE_DEVICES=0,1,2,3 python train.py --jsn womac3 --prj Gds/descar3/check  --models descar3att --netG dsattmc --netD bpatch_16 --direction ap_bp -b 1 --split moaks --final none
+
+#CUDA_VISIBLE_DEVICES=0,1,2 python train.py --jsn womac3 --prj descar2att/descar2att/GdsattmcDugatit --mc --engine descar2att --netG dsattmc --netD ugatit  --direction areg_b --index --gray --final none --env a6k --n01
