@@ -19,13 +19,15 @@ class Generator(nn.Module): #layers was 5
                  dec_dim=64, dec_layers=5, dec_norm_fn='batch', dec_acti_fn='relu',
                  n_attrs=1, shortcut_layers=1, inject_layers=0, img_size=128, final='tanh'):
         super(Generator, self).__init__()
-        self.shortcut_layers = min(shortcut_layers, dec_layers - 1)
-        self.inject_layers = min(inject_layers, dec_layers - 1)
+
+        self.shortcut_layers = min([shortcut_layers, dec_layers - 1])
+        self.inject_layers = min([inject_layers, dec_layers - 1])
         self.f_size = img_size // 2 ** enc_layers  # f_size = 4 for 128x128
 
         layers = []
         for i in range(enc_layers):
-            n_out = min(enc_dim * 2 ** i, MAX_DIM)
+
+            n_out = min([enc_dim * 2 ** i, MAX_DIM])
             layers += [Conv2dBlock(
                 n_in, n_out, (4, 4), stride=2, padding=1, norm_fn=enc_norm_fn, acti_fn=enc_acti_fn
             )]
@@ -58,8 +60,18 @@ class Generator(nn.Module): #layers was 5
         return zs
 
     def decode(self, zs, a):
+
+        print(a.shape)
+
         a_tile = a.view(a.size(0), -1, 1, 1).repeat(1, 1, self.f_size, self.f_size)
+
+        print(a_tile.shape)
+        print(zs[-1].shape)
+
         z = torch.cat([zs[-1], a_tile], dim=1)
+
+        print(z.shape)
+
         for i, layer in enumerate(self.dec_layers):
             z = layer(z)
             if self.shortcut_layers > i:  # Concat 1024 with 512
@@ -320,14 +332,11 @@ if __name__ == '__main__':
     args = parser.parse_args()
     args.n_attrs = 13
     args.betas = (args.beta1, args.beta2)
-    attgan = AttGAN(args)
+    #attgan = AttGAN(args)
 
-    #netg = Generator(enc_dim=64, enc_layers=7, enc_norm_fn='batchnorm', enc_acti_fn='lrelu',
-    #             dec_dim=64, dec_layers=7, dec_norm_fn='batchnorm', dec_acti_fn='relu',
-    #             n_attrs=1, shortcut_layers=1, inject_layers=0, img_size=256)
+    netg = Generator(img_size=256, n_attrs=256)
 
-    netg = Generator(enc_layers=3, dec_layers=3, enc_dim=64, dec_dim=64,
-                                   n_attrs=1, img_size=256, final='tanh')
+    out = netg(torch.rand(3, 3, 256, 256), torch.rand(3, 256))
 
     #netd = Discriminators(img_size=256)
     #print(netd(torch.rand(1, 6, 256, 256))[0].shape)

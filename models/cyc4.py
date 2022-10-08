@@ -42,6 +42,7 @@ class GAN(BaseModel):
 
         self.oriXw = img[0]
         self.oriXo = img[1]
+
         self.oriYw = img[2]
         self.oriYo = img[3]
 

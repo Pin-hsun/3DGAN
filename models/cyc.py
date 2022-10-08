@@ -27,8 +27,8 @@ class GAN(BaseModel):
         parser.add_argument("--lambI", type=int, default=0.5)
         return parent_parser
 
-    def test_method(self, net_g, x):
-        output = net_g(x[0])
+    def test_method(self, net_g, img):
+        output = net_g(img[0])
         #output = combine(output, x[0], method='mul')
         return output[0]
 

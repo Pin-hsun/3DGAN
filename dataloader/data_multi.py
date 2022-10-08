@@ -110,15 +110,15 @@ class MultiData(data.Dataset):
         filenames_all = []
         if self.filenames:
             for i in range(len(self.subset)):
-                outputs, _, filenames = self.subset[i].__getitem__(index)
+                outputs, labels, filenames = self.subset[i].__getitem__(index)
                 outputs_all = outputs_all + outputs
                 filenames_all = filenames_all + filenames
-            return {'img': outputs_all, 'filenames': filenames_all}
+            return {'img': outputs_all, 'labels': labels, 'filenames': filenames_all}
         else:
             for i in range(len(self.subset)):
-                outputs, _ = self.subset[i].__getitem__(index)
+                outputs, labels = self.subset[i].__getitem__(index)
                 outputs_all = outputs_all + outputs
-            return {'img': outputs_all}
+            return {'img': outputs_all, 'labels': labels}
 
 
 class PairedData(data.Dataset):
@@ -323,8 +323,8 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='pix2pix-pytorch-implementation')
     # Data
-    parser.add_argument('--dataset', type=str, default='womac3/train/')
-    parser.add_argument('--load3d', action='store_true', dest='load3d', default=False)
+    parser.add_argument('--dataset', type=str, default='womac3/full/')
+    parser.add_argument('--load3d', action='store_true', dest='load3d', default=True)
     parser.add_argument('--direction', type=str, default='areg_b', help='a2b or b2a')
     parser.add_argument('--flip', action='store_true', dest='flip', default=False, help='image flip left right')
     parser.add_argument('--resize', type=int, default=0)
@@ -349,7 +349,7 @@ if __name__ == '__main__':
         dataset = MultiData(root=root, path='areg_b_aregseg_bseg', opt=opt, mode='train', filenames=False)
         xm = dataset3d.__getitem__(100)
 
-    if 1:
+    if 0:
         # fly3d
         root = '/media/ExtHDD01/Dataset/paired_images/Fly3D/train/' # change to your data root
         opt.n01 = False
@@ -365,3 +365,17 @@ if __name__ == '__main__':
                                 directions='xyzweak_xyzsb', permute=(0, 2, 1),
                                 crop=[0, 1890, 1024+512, 1024+512+32, 0, 1024])
         x = datatif.__getitem__(0)
+
+    if 1:
+        root = os.environ.get('DATASET') + opt.dataset
+        opt.cropsize = 256
+        opt.n01 = True
+        #dataset = PairedData(root=root, path=opt.direction, opt=opt, mode='train', filenames=False)
+        #x = dataset.__getitem__(100)
+        #dataset3d = PairedData3D(root=root, path=opt.direction, opt=opt, mode='train', filenames=False)
+        #x3d = dataset3d.__getitem__(100)
+
+        # womac3
+        opt.load3d = True
+        dataset3d = MultiData(root=root, path='a_effusion/aeffpain_b_effusion/beffpain', opt=opt, mode='train', filenames=False)
+        xm = dataset3d.__getitem__(210)

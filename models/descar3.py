@@ -41,7 +41,7 @@ class GAN(BaseModel):
         self.oriX = img[0]
         self.imgXY, self.imgXX = net_g(self.oriX, a=None)
         self.imgXY = nn.Sigmoid()(self.imgXY)  # mask
-        self.imgXY = combine(self.imgXY, self.oriX, method='mul')
+        #self.imgXY = combine(self.imgXY, self.oriX, method='mul')
 
         return self.imgXY
 
@@ -160,7 +160,7 @@ class GAN(BaseModel):
         return metrics
 
     def add_loss_adv_classify3d(self, a, net_d, truth_adv, truth_classify, log=None):
-        fake_in = torch.cat((a, a), 1)
+        fake_in = a
         adv_logits, classify_logits = net_d(fake_in)
 
         # 3D classification
@@ -183,9 +183,9 @@ class GAN(BaseModel):
         return adv, classify
 
     def add_loss_adv_classify3d_paired(self, a, b, net_d, classifier, truth_adv, truth_classify, log=None):
-        a_in = torch.cat((a, a), 1)
+        a_in = a# torch.cat((a, a), 1)
         adv_a, classify_a = net_d(a_in)
-        b_in = torch.cat((b, b), 1)
+        b_in = b# torch.cat((b, b), 1)
         adv_b, classify_b = net_d(b_in)
 
         if truth_adv:
@@ -253,5 +253,5 @@ class GAN(BaseModel):
 
 
 # CUDA_VISIBLE_DEVICES=0,1,2 python train.py --jsn womac3 --prj Gds/descar3/Gdsmc3DB --mc --engine descar3 --netG dsmc --netD descar --direction areg_b --index --gray --load3d --final none
-# CUDA_VISIBLE_DEVICES=0,1,2,3 python train.py --env  a6k --jsn womac3 --prj Gds/descar3b/GdsmcDboatch16 --mc --engine descar3b --netG dsmc --netD bpatch_16 --direction ap_bp --index --load3d --final none
-# CUDA_VISIBLE_DEVICES=0,1,2,3 python train.py --jsn womac3 --prj 3D/descar3/GdsmcDboatch16check  --models descar3 --netG dsmc --netD bpatch_16 --direction ap_bp --final none -b 1 --split moaks --final none
+# CUDA_VISIBLE_DEVICES=0,1,2,3 python train.py --jsn womac3 --prj 3D/descar3/GdsmcDbpatch16Trd800 --mc --engine descar3 --netG dsmc --netD bpatch_16 --direction ap_bp --split moaks --load3d --final none --n_epochs 400 --trd 800
+# CUDA_VISIBLE_DEVICES=0,1,2,3 python train.py --jsn womac3 --prj 3D/descar3/GdsmcDbpatch16Trd800  --models descar3 --netG dsmc --netD bpatch_16 --direction ap_bp --final none -b 1 --split moaks --final none --n_epochs 400 --trd 800

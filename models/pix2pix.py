@@ -14,9 +14,17 @@ class GAN(BaseModel):
     def add_model_specific_args(parent_parser):
         return parent_parser
 
+    def test_method(self, net_g, img):
+        self.oriX = img[0]
+        self.oriY = img[1]
+        self.imgX0 = net_g(self.oriX)[0]
+
+        return self.imgX0
+
     def generation(self):
-        self.oriX = self.batch[0]
-        self.oriY = self.batch[1]
+        self.img = self.batch['img']
+        self.oriX = self.img[0]
+        self.oriY = self.img[1]
         self.imgX0 = self.net_g(self.oriX)[0]
 
     def backward_g(self, inputs):
@@ -40,4 +48,4 @@ class GAN(BaseModel):
         return {'sum': loss_d, 'loss_d': loss_d}
 
 
-# CUDA_VISIBLE_DEVICES=0,2,3 python train.py --jsn womac3 --prj compare/pix2pix/Gdescarganshallow  --models pix2pix--netG descarganshallow --direction ap_bp --final none -b 1 --split moaks
+#CUDA_VISIBLE_DEVICES=0,1 python train.py --jsn womac3 --prj compare/pix2pix/Gunet128 --models pix2pix --netG unet_128 --direction ap_bp --final sigmoid -b 1 --split moaks --cmb not
