@@ -23,8 +23,8 @@ class GAN(BaseModel):
         self.classifier = nn.Conv2d(256, 1, 1, stride=1, padding=0).cuda()
 
         # save model names
-        self.netg_names = {'net_g': 'netG'}
-        self.netd_names = {'net_d': 'netD', 'classifier': 'classifier'}#, 'net_class': 'netDC'}
+        self.netg_names = {'net_g': 'net_g'}
+        self.netd_names = {'net_d': 'net_d', 'classifier': 'classifier'}#, 'net_class': 'netDC'}
 
         #self.df = pd.read_csv(os.getenv("HOME") + '/Dropbox/TheSource/scripts/OAI_pipelines/meta/subjects_unipain_womac3.csv')
 
@@ -159,34 +159,9 @@ class GAN(BaseModel):
             self.log('auc' + str(i), auc[i], on_step=False, on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
         return metrics
 
-    def add_loss_adv_classify3d(self, a, net_d, truth_adv, truth_classify, log=None):
-        fake_in = a
-        adv_logits, classify_logits = net_d(fake_in)
-
-        # 3D classification
-        classify_logits = nn.AdaptiveAvgPool2d(1)(classify_logits)
-        classify_logits = classify_logits.sum(0).unsqueeze(0)
-
-        if truth_adv:
-            adv = self.criterionGAN(adv_logits, torch.ones_like(adv_logits))
-        else:
-            adv = self.criterionGAN(adv_logits, torch.zeros_like(adv_logits))
-
-        if truth_classify:
-            classify = self.criterionGAN(classify_logits, torch.ones_like(classify_logits))
-        else:
-            classify = self.criterionGAN(classify_logits, torch.zeros_like(classify_logits))
-
-        if log is not None:
-            self.log(log, adv, on_step=False, on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
-
-        return adv, classify
-
     def add_loss_adv_classify3d_paired(self, a, b, net_d, classifier, truth_adv, truth_classify, log=None):
-        a_in = a# torch.cat((a, a), 1)
-        adv_a, classify_a = net_d(a_in)
-        b_in = b# torch.cat((b, b), 1)
-        adv_b, classify_b = net_d(b_in)
+        adv_a, classify_a = net_d(a)
+        adv_b, classify_b = net_d(b)
 
         if truth_adv:
             adv_a = self.criterionGAN(adv_a, torch.ones_like(adv_a))
@@ -214,44 +189,9 @@ class GAN(BaseModel):
 
         return adv_a, adv_b, classify, classify_logits
 
-    def add_loss_adv_classify3d_paired2(self, a, b, a2, b2, net_d, classifier, truth_adv, truth_classify, log=None):
-        a_in = torch.cat((a, a), 1)
-        adv_a, classify_a = net_d(a_in)
-        b_in = torch.cat((b, b), 1)
-        adv_b, classify_b = net_d(b_in)
 
-        a2_in = torch.cat((a2, a2), 1)
-        adv_a2, classify_a2 = net_d(a2_in)
-        b2_in = torch.cat((b2, b2), 1)
-        adv_b2, classify_b2 = net_d(b2_in)
-
-        if truth_adv:
-            adv_a = self.criterionGAN(adv_a, torch.ones_like(adv_a))
-            adv_b = self.criterionGAN(adv_b, torch.ones_like(adv_b))
-        else:
-            adv_a = self.criterionGAN(adv_a, torch.zeros_like(adv_a))
-            adv_b = self.criterionGAN(adv_b, torch.zeros_like(adv_b))
-
-        if truth_classify:
-            classify_logits = nn.AdaptiveAvgPool2d(1)(classify_a - classify_b2) - nn.AdaptiveAvgPool2d(1)(classify_b - classify_a2)
-        else:
-            classify_logits = nn.AdaptiveAvgPool2d(1)(classify_b - classify_a2) - nn.AdaptiveAvgPool2d(1)(classify_a - classify_b2)
-
-        classify_logits, _ = torch.max(classify_logits, 0)
-        classify_logits = classify_logits.unsqueeze(0)
-        classify_logits = classifier(classify_logits)
-
-        if truth_classify:
-            classify = self.criterionGAN(classify_logits, torch.ones_like(classify_logits))
-        else:
-            classify = self.criterionGAN(classify_logits, torch.zeros_like(classify_logits))
-
-        if log is not None:
-            self.log(log, adv, on_step=False, on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
-
-        return adv_a, adv_b, classify, classify_logits
 
 
 # CUDA_VISIBLE_DEVICES=0,1,2 python train.py --jsn womac3 --prj Gds/descar3/Gdsmc3DB --mc --engine descar3 --netG dsmc --netD descar --direction areg_b --index --gray --load3d --final none
 # CUDA_VISIBLE_DEVICES=0,1,2,3 python train.py --jsn womac3 --prj 3D/descar3/GdsmcDbpatch16Trd800 --mc --engine descar3 --netG dsmc --netD bpatch_16 --direction ap_bp --split moaks --load3d --final none --n_epochs 400 --trd 800
-# CUDA_VISIBLE_DEVICES=0,1,2,3 python train.py --jsn womac3 --prj 3D/descar3/GdsmcDbpatch16Trd800  --models descar3 --netG dsmc --netD bpatch_16 --direction ap_bp --final none -b 1 --split moaks --final none --n_epochs 400 --trd 800
+# CUDA_VISIBLE_DEVICES=0,1,2,3 python train.py --jsn womac3 --prj 3D/descar3/GdsmcDbpatch16  --models descar3 --netG dsmc --netD bpatch_16 --direction ap_bp --final none -b 1 --split moaks --final none --n_epochs 400

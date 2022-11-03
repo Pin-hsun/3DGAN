@@ -1,6 +1,7 @@
 from models.base import BaseModel, combine
 import copy
 import torch
+import torch.nn as nn
 import tifffile as tiff
 import os
 from dotenv import load_dotenv
@@ -24,11 +25,15 @@ class GAN(BaseModel):
         self.netg_names = {'net_gXY': 'netGXY', 'net_gYX': 'netGYX'}
         self.netd_names = {'net_dXw': 'netDXw', 'net_dYw': 'netDYw', 'net_dXo': 'netDXo', 'net_dYo': 'netDYo'}
 
+        if self.hparams.downZ > 0:
+            self.upz = nn.Upsample(size=(self.hparams.cropsize, self.hparams.cropsize), mode='bilinear').cuda()
+
     @staticmethod
     def add_model_specific_args(parent_parser):
         parser = parent_parser.add_argument_group("LitModel")
         # coefficient for the identify loss
         parser.add_argument("--lambI", type=float, default=0.5)
+        parser.add_argument("--downZ", type=int, default=0)
         return parent_parser
 
     def test_method(self, net_g, x):
@@ -42,6 +47,12 @@ class GAN(BaseModel):
 
         self.oriXw = img[0]
         self.oriXo = img[1]
+
+        if self.hparams.downZ > 0:
+            self.oriXw = self.oriXw[:, :, ::self.hparams.downZ, :]
+            self.oriXo = self.oriXo[:, :, ::self.hparams.downZ, :]
+            self.oriXw = self.upz(self.oriXw)
+            self.oriXo = self.upz(self.oriXo)
 
         self.oriYw = img[2]
         self.oriYo = img[3]
@@ -111,4 +122,4 @@ class GAN(BaseModel):
 
 
 # USAGE
-# CUDA_VISIBLE_DEVICES=0 python train.py --jsn wnwp3d --prj wnwp3d/cyc4/GdenuWBmc --mc --engine cyc4 -b 16 --netG descarnoumc --direction zyweak_zysb%xyweak_xysb
+# CUDA_VISIBLE_DEVICES=0,1,2,3 python train.py --jsn wnwp3d --prj wnwp3d/cyc4/GdenuWBmcOct13 --mc --engine cyc4 -b 16 --netG descarnoumc --direction zyweak_zysb%xyweak_xysb

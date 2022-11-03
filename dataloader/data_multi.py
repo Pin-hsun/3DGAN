@@ -133,6 +133,7 @@ class PairedData(data.Dataset):
         self.index = index
 
         self.all_path = list(os.path.join(root, x) for x in path.split('_'))
+
         # get name of images from the first folder
         self.images = sorted([x.split('/')[-1] for x in glob.glob(self.all_path[0] + '/*')])
         if self.opt.resize == 0:
@@ -187,10 +188,9 @@ class PairedData(data.Dataset):
 
         if self.opt.trd > 0:
             x[x >= self.opt.trd] = self.opt.trd
-            x = x / self.opt.trd
-        else:
-            if x.max() > 0:  # scale to 0-1
-                x = x / x.max()
+
+        if x.max() > 0:  # scale to 0-1
+            x = x / x.max()
 
         if len(x.shape) == 2:  # if grayscale
             x = np.expand_dims(x, 2)
@@ -281,23 +281,24 @@ class PairedData3D(PairedData):
 
 
 class PairedDataTif(data.Dataset):
-    def __init__(self, root, directions, permute=None, crop=None, trd=None):
+    def __init__(self, root, directions, permute=None, crop=None, trd=0):
         self.directions = directions.split('_')
 
         self.tif = []
         for d in self.directions:
+            print('loading...')
             if crop is not None:
                 tif = tiff.imread(os.path.join(root, d + '.tif'))[crop[0]:crop[1], crop[2]:crop[3], crop[4]:crop[5]]
             else:
                 tif = tiff.imread(os.path.join(root, d + '.tif'))
+            print('done...')
             tif = tif.astype(np.float32)
 
             if trd > 0:
                 tif[tif >= trd] = trd
-                tif = tif / trd
-            else:
-                if tif.max() > 0:  # scale to 0-1
-                    tif = tif / tif.max()
+
+            if tif.max() > 0:  # scale to 0-1
+                tif = tif / tif.max()
 
             tif = (tif * 2) - 1
             if permute is not None:
@@ -349,9 +350,9 @@ if __name__ == '__main__':
         dataset = MultiData(root=root, path='areg_b_aregseg_bseg', opt=opt, mode='train', filenames=False)
         xm = dataset3d.__getitem__(100)
 
-    if 0:
+    if 1:
         # fly3d
-        root = '/media/ExtHDD01/Dataset/paired_images/Fly3D/train/' # change to your data root
+        root = '/media/ExtHDD01/Dataset/paired_images/Fly0B/train/' # change to your data root
         opt.n01 = False
         opt.load3d = True
         dataset = MultiData(root=root, path='xyweak_xysb',
@@ -366,7 +367,7 @@ if __name__ == '__main__':
                                 crop=[0, 1890, 1024+512, 1024+512+32, 0, 1024])
         x = datatif.__getitem__(0)
 
-    if 1:
+    if 0:
         root = os.environ.get('DATASET') + opt.dataset
         opt.cropsize = 256
         opt.n01 = True

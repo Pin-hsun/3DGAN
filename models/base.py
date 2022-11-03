@@ -40,7 +40,6 @@ class BaseModel(pl.LightningModule):
         self.train_loader = train_loader
 
         # initialize
-        self.tini = time.time()
         self.epoch = 0
         self.dir_checkpoints = checkpoints
 
@@ -56,13 +55,7 @@ class BaseModel(pl.LightningModule):
         self.hparams.update(hparams)
         self.save_hyperparameters(self.hparams)
 
-        # set networks
-        self.net_g, self.net_d = self.set_networks()
-
-        # Optimizer and scheduler
-        [self.optimizer_d, self.optimizer_g], _ = self.configure_optimizers()
-        self.net_g_scheduler = get_scheduler(self.optimizer_g, self.hparams)
-        self.net_d_scheduler = get_scheduler(self.optimizer_d, self.hparams)
+        self.init_networks_optimizer_scheduler()
 
         # Define Loss Functions
         self.CELoss = CrossEntropyLoss()
@@ -75,10 +68,20 @@ class BaseModel(pl.LightningModule):
 
         # Final
         self.hparams.update(vars(self.hparams))   # updated hparams to be logged in tensorboard
-        self.train_loader.dataset.shuffle_images()
+        self.train_loader.dataset.shuffle_images()  # !!! STUPID shuffle again just to make sure
 
         self.all_label = []
         self.all_out = []
+
+    def init_networks_optimizer_scheduler(self):
+        # set networks
+        self.net_g, self.net_d = self.set_networks()
+
+        # Optimizer and scheduler
+        [self.optimizer_d, self.optimizer_g], [] = self.configure_optimizers()
+        self.net_g_scheduler = get_scheduler(self.optimizer_g, self.hparams)
+        self.net_d_scheduler = get_scheduler(self.optimizer_d, self.hparams)
+
 
     def configure_optimizers(self):
         netg_parameters = []
@@ -91,12 +94,10 @@ class BaseModel(pl.LightningModule):
 
         self.optimizer_g = optim.Adam(netg_parameters, lr=self.hparams.lr, betas=(self.hparams.beta1, 0.999))
         self.optimizer_d = optim.Adam(netd_parameters, lr=self.hparams.lr, betas=(self.hparams.beta1, 0.999))
-        #self.net_g_scheduler = get_scheduler(self.optimizer_g, self.hparams)
-        #self.net_d_scheduler = get_scheduler(self.optimizer_d, self.hparams)
-
+        self.net_g_scheduler = get_scheduler(self.optimizer_g, self.hparams)
+        self.net_d_scheduler = get_scheduler(self.optimizer_d, self.hparams)
         # not using pl scheduler for now....
-
-        return [self.optimizer_d, self.optimizer_g], []#[self.net_d_scheduler, self.net_g_scheduler]
+        return [self.optimizer_d, self.optimizer_g], []
 
     def add_loss_adv(self, a, net_d, coeff, truth):
         disc_logits = net_d(a)[0]
@@ -156,7 +157,6 @@ class BaseModel(pl.LightningModule):
                     print("Checkpoint saved to {}".format(path_d))
 
         self.epoch += 1
-        self.tini = time.time()
         self.net_g_scheduler.step()
         self.net_d_scheduler.step()
 

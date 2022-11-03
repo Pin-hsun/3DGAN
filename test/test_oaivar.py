@@ -1,5 +1,6 @@
 from __future__ import print_function
 import argparse, json
+import networks, models
 import os, sys
 from utils.data_utils import imagesc
 import torch
@@ -32,11 +33,13 @@ class Pix2PixModel:
                                 path=args.direction,
                                 opt=args, mode='test', filenames=True)
 
+        sys.modules['models'] = networks
         self.seg_cartilage = torch.load('submodels/model_seg_ZIB_res18_256.pth')
         self.seg_bone = torch.load('submodels/model_seg_ZIB.pth')
         #self.netg_t2d = torch.load('submodels/tse_dess_unet32.pth')
         self.netg_t2d = torch.load('submodels/t2d_pix2pixNS.pth')
         self.eff = torch.load('submodels/model_seg_eff.pth')
+        sys.modules['models'] = models
 
         self.netg_t2d.eval()
         self.seg_cartilage.eval()
@@ -48,7 +51,12 @@ class Pix2PixModel:
         model_path = os.path.join(self.dir_checkpoints, self.args.dataset, self.args.prj, 'checkpoints') + \
                ('/' + self.args.netg + '_model_epoch_{}.pth').format(epoch)
         print(model_path)
-        net = torch.load(model_path, map_location='cpu').cuda()
+        try:
+            net = torch.load(model_path, map_location='cpu').cuda()
+        except:
+            sys.modules['models'] = networks
+            net = torch.load(model_path, map_location='cpu').cuda()
+            sys.modules['models'] = models
         if eval:
             net.eval()
         else:
@@ -321,7 +329,8 @@ for epoch in range(*args.nepochs):
                 tiff.imwrite(os.path.join(destination, names[0][0].split('/')[-1]),
                              x[0][0, ::].numpy().astype(np.float32))
         else:
-            to_show = [bonesegvar]#[imgX, combinedmean, diffseg0, bonesegvar, diffseg1]
+            dall = [x + y for x, y in zip(diffseg0, diffseg1)]
+            to_show = [dall]#[imgX, combinedmean, diffseg0, diffseg1]
             #to_show = [imgX, combined, [to_rgb(x) for x in diffseg0], [to_rgb(x) for x in diffseg1]]
             to_print(to_show, save_name=os.path.join("outputs/results", args.dataset, args.prj,
                                                      str(epoch) + '_' + str(alpha) + '_' + str(ii).zfill(4) + 'm'))
