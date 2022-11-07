@@ -264,47 +264,49 @@ for epoch in range(*args.nepochs):
         for i in range(len(diffmean)):
             diffsig.append(torch.div(diffmean[i], diffvar[i]+0.0001))
 
-        # average seg
-        #combinedall = [x[0,::] for x in combinedall]
-        xseg = test_unit.get_all_seg([imgX])[0]
-        xyseg = test_unit.get_all_seg([combinedmean])[0]
+        if 1:
+            # average seg
+            #combinedall = [x[0,::] for x in combinedall]
+            xseg = test_unit.get_all_seg([imgX])[0]
+            xyseg = test_unit.get_all_seg([combinedmean])[0]
 
-        # single seg over all combined
-        ax = [[combinedall[i][:, :, :, j] for j in range(combinedall[0].shape[3])] for i in range(len(combinedall))]
-        axseg = [test_unit.get_all_seg([ax[i]])[0] for i in range(len(ax))]
-        # imagesc(torch.var((torch.stack(axseg, 2) == 3)/1 + (torch.stack(axseg, 2) == 1)/1, 2))
+            # single seg over all combined
+            ax = [[combinedall[i][:, :, :, j] for j in range(combinedall[0].shape[3])] for i in range(len(combinedall))]
+            axseg = [test_unit.get_all_seg([ax[i]])[0] for i in range(len(ax))]
+            # imagesc(torch.var((torch.stack(axseg, 2) == 3)/1 + (torch.stack(axseg, 2) == 1)/1, 2))
 
-        bonesegvar = [torch.var((torch.stack(axseg[i], 2) == 3)/1 +
-                                (torch.stack(axseg[i], 2) == 1)/1, 2) for i in range(len(ax))]
-        bonesegvar = [x.unsqueeze(0) for x in bonesegvar]
+            bonesegvar = [torch.var((torch.stack(axseg[i], 2) == 3)/1 +
+                                    (torch.stack(axseg[i], 2) == 1)/1, 2) for i in range(len(ax))]
+            bonesegvar = [x.unsqueeze(0) for x in bonesegvar]
 
-        cartilagesegvar = [torch.var((torch.stack(axseg[i], 2) == 2)/1 +
-                                     (torch.stack(axseg[i], 2) == 4)/1, 2) for i in range(len(ax))]
-        cartilagesegvar = [x.unsqueeze(0) for x in cartilagesegvar]
+            cartilagesegvar = [torch.var((torch.stack(axseg[i], 2) == 2)/1 +
+                                         (torch.stack(axseg[i], 2) == 4)/1, 2) for i in range(len(ax))]
+            cartilagesegvar = [x.unsqueeze(0) for x in cartilagesegvar]
 
-        # Segmentation
-        mask_bone = [0, 2, 4]
-        mask_eff = [1, 3]
+            # Segmentation
+            mask_bone = [0, 2, 4]
+            mask_eff = [1, 3]
 
-        tag = False
-        diffseg0 = seperate_by_seg(x=diffmean, seg_used=xyseg, masked=mask_bone, if_absolute=True)
-        diffseg1 = seperate_by_seg(x=diffmean, seg_used=xyseg, masked=mask_eff, if_absolute=True)
-        diffvar0 = seperate_by_seg(x=diffvar, seg_used=xyseg, masked=mask_bone, if_absolute=False)
-        diffvar1 = seperate_by_seg(x=diffvar, seg_used=xyseg, masked=mask_eff, if_absolute=False)
+            tag = False
+            diffseg0 = seperate_by_seg(x=diffmean, seg_used=xyseg, masked=mask_bone, if_absolute=True)
+            diffseg1 = seperate_by_seg(x=diffmean, seg_used=xyseg, masked=mask_eff, if_absolute=True)
+            diffvar0 = seperate_by_seg(x=diffvar, seg_used=xyseg, masked=mask_bone, if_absolute=False)
+            diffvar1 = seperate_by_seg(x=diffvar, seg_used=xyseg, masked=mask_eff, if_absolute=False)
 
-        outputsig0 = seperate_by_seg(x=outputsig, seg_used=xyseg, masked=mask_bone, if_absolute=tag)
-        outputsig1 = seperate_by_seg(x=outputsig, seg_used=xyseg, masked=mask_eff, if_absolute=tag)
+            outputsig0 = seperate_by_seg(x=outputsig, seg_used=xyseg, masked=mask_bone, if_absolute=tag)
+            outputsig1 = seperate_by_seg(x=outputsig, seg_used=xyseg, masked=mask_eff, if_absolute=tag)
 
-        diffsig0 = seperate_by_seg(x=diffsig, seg_used=xyseg, masked=mask_bone, if_absolute=tag)
-        diffsig1 = seperate_by_seg(x=diffsig, seg_used=xyseg, masked=mask_eff, if_absolute=tag)
+            diffsig0 = seperate_by_seg(x=diffsig, seg_used=xyseg, masked=mask_bone, if_absolute=tag)
+            diffsig1 = seperate_by_seg(x=diffsig, seg_used=xyseg, masked=mask_eff, if_absolute=tag)
 
-        # significance
-        diffsig0 = []
-        diffsig1 = []
-        for i in range(len(diffvar0)):
-            diffsig0.append(torch.div(diffseg0[i], diffvar0[i]+0.0001))
-            diffsig1.append(torch.div(diffseg1[i], diffvar1[i]+0.0001))
-
+            # significance
+            diffsig0 = []
+            diffsig1 = []
+            for i in range(len(diffvar0)):
+                diffsig0.append(torch.div(diffseg0[i], diffvar0[i]+0.0001))
+                diffsig1.append(torch.div(diffseg1[i], diffvar1[i]+0.0001))
+            xseg = [x.unsqueeze(0) for x in xseg]
+            xyseg = [x.unsqueeze(0) for x in xyseg]
         # Print
         if 0:
             to_show = [[to_rgb(x) for x in diffseg0],
@@ -319,9 +321,7 @@ for epoch in range(*args.nepochs):
                                                      str(epoch) + '_' + str(alpha) + '_' + str(ii).zfill(4) + 'm'))
 
         if args.all:
-            xseg = [x.unsqueeze(0) for x in xseg]
-            xyseg = [x.unsqueeze(0) for x in xyseg]
-            for item in ['bonesegvar']:#['cartilagesegvar', 'xyseg', 'xseg']:
+            for item in ['diffmean']:#['cartilagesegvar', 'xyseg', 'xseg']:
                 root = '/media/ExtHDD01/Dataset/paired_images/womac3/full/new'
                 destination = os.path.join(root, item)
                 os.makedirs(destination, exist_ok=True)
@@ -330,7 +330,7 @@ for epoch in range(*args.nepochs):
                              x[0][0, ::].numpy().astype(np.float32))
         else:
             dall = [x + y for x, y in zip(diffseg0, diffseg1)]
-            to_show = [dall]#[imgX, combinedmean, diffseg0, diffseg1]
+            to_show = [diffseg0]#[imgX, combinedmean, diffseg0, diffseg1]
             #to_show = [imgX, combined, [to_rgb(x) for x in diffseg0], [to_rgb(x) for x in diffseg1]]
             to_print(to_show, save_name=os.path.join("outputs/results", args.dataset, args.prj,
                                                      str(epoch) + '_' + str(alpha) + '_' + str(ii).zfill(4) + 'm'))
@@ -343,5 +343,5 @@ for epoch in range(*args.nepochs):
 
 
 # USAGE
-# CUDA_VISIBLE_DEVICES=1 python testoai.py --jsn womac3 --direction a_b --prj 3D/descar3/GdsmcDboatch16/ --engine descar3 --cropsize 384 --n01 --cmb mul --gray --nepochs 400 401 40 --nalpha 0 20 20
+# CUDA_VISIBLE_DEVICES=1 python -m test.test_oaivar.py --jsn womac3 --direction a_b --prj 3D/descar3/GdsmcDbpatch16/ --engine descar3 --cropsize 384 --n01 --cmb mul --gray --nepochs 400 401 40 --nalpha 0 20 20
 

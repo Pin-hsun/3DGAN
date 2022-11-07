@@ -10,6 +10,7 @@ import pytorch_lightning as pl
 from utils.metrics_segmentation import SegmentationCrossEntropyLoss
 from utils.metrics_classification import CrossEntropyLoss, GetAUC
 from utils.data_utils import *
+
 class Namespace:
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)

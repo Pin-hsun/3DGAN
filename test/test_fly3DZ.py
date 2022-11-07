@@ -127,24 +127,20 @@ if __name__ == '__main__':
     else:
         load_dotenv('env/.t09')
 
-    if 1:
+    if 0:
         args.prj = 'wnwp3d/cyc/GdenuBmc'
         args.direction = 'xyzsb'
         args.destination = '/media/ghc/GHc_data2/N3D/B/'
         args.trd = 0
-    elif 0:
-        args.prj = 'wnwp3d/cyc/GdenuOmc'
+    elif 1:
+        args.prj = 'wnwp3d/cyc/GdenuF0OmcXmc'
         args.direction = 'xyzori'
-        args.destination = '/media/ghc/GHc_data2/N3D/O/'
+        args.destination = '/media/ghc/GHc_data2/N3D/F0OmcX/'
+        args.trd = 0
 
     #args.destination = '/home/ubuntu/Data/N3D/F0OTrd2k'
 
-    if 0:
-        for stepx in range(3):
-            for stepy in range(3):
-                make_rotation_3d(stepx=stepx, stepy=stepy)
-    else:
-        make_rotation_3d(stepx=2, stepy=0)
+    make_rotation_3d(stepx=2, stepy=0)
 
 # USAGE
 # CUDA_VISIBLE_DEVICES=0 python test.py --jsn default --dataset pain --nalpha 0 100 2  --prj VryAtt

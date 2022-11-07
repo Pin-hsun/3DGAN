@@ -119,17 +119,9 @@ else:
     test_loader = None
 
 
-#val_set = Dataset(root=os.environ.get('DATASET') + args.dataset + '/test/',
-#                  path=args.direction,
-#                  opt=args, mode='test')
-#val_loader = DataLoader(dataset=val_set, num_workers=args.threads, batch_size=args.batch_size, shuffle=False)
-
 # Logger
 logger = pl_loggers.TensorBoardLogger(os.environ.get('LOGS') + args.dataset + '/', name=args.prj)
-#from pytorch_lightning.loggers.neptune import NeptuneLogger
-#logger = NeptuneLogger(
-#    api_key="ANONYMOUS",
-#    project="shared/pytorch-lightning-integration")
+
 
 # Trainer
 checkpoints = os.path.join(os.environ.get('LOGS'), args.dataset, args.prj, 'checkpoints')
@@ -143,9 +135,4 @@ trainer.fit(net, train_loader, test_loader)  # test loader not used during train
 
 
 # Examples of  Usage
-# CUDA_VISIBLE_DEVICES=1 python train.py --dataset TSE_DESS -b 16 --prj VryCycle --direction a_b --resize 286 --models cyclegan --lamb 10 --unpaired
-# CUDA_VISIBLE_DEVICES=1 python train.py --dataset pain -b 16 --prj VryNS4B --direction aregis1_b --resize 286 --models NS4 --netG attgan
-# CUDA_VISIBLE_DEVICES=0 python train.py --dataset FlyZ -b 16 --prj WpWn286B --direction xyweak%zyweak --resize 286 --models cyclegan --lamb 10
-# CUDA_VISIBLE_DEVICES=1 python train.py --dataset FlyZ -b 16 --prj WpOp256Mask --direction xyweak_xyorisb --resize 256 --models pix2pixNS
-# CUDA_VISIBLE_DEVICES=0 python train.py --jsn womac3 --prj mcfix/descar2/Gunet128 --models descar2 --netG unet_128 --mc --direction areg_b --index
-# CUDA_VISIBLE_DEVICES=0 python train.py --dataset womac3 -b 1 --prj bysubjectright/descar2/GDdescars --direction areg_b --cropsize 256 --models descar2 --netG descars --netD descar --n01 --final sigmoid --cmb mul --bysubject
+# CUDA_VISIBLE_DEVICES=0,1,2,3 python train.py --jsn womac3 --prj 3D/descar3/GdsmcDbpatch16  --models descar3 --netG dsmc --netD bpatch_16 --direction ap_bp --final none -b 1 --split moaks --final none --n_epochs 400
