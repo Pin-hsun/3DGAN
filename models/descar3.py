@@ -91,6 +91,7 @@ class GAN(BaseModel):
         id = self.filenames[0][0].split('/')[-1].split('_')[0]
         side = self.df.loc[self.df['ID'] == int(id), ['SIDE']].values[0][0]
         # ADV(XY)- -
+        # aversarial of xy
         axy, _ = self.add_loss_adv_classify3d(a=self.imgXY, net_d=self.net_d, truth_adv=False, truth_classify=False)
         # ADV(XX)- +
         #axx, cxx = self.add_loss_adv_classify(a=self.imgXX, net_d=self.net_d, truth_adv=False, truth_classify=True)
@@ -104,11 +105,13 @@ class GAN(BaseModel):
         # ADV(Y)+ -
         #ay, cy = self.add_loss_adv_classify3d(a=self.oriY, net_d=self.net_d, truth_adv=True, truth_classify=False)
         truth_classify = (side == 'RIGHT')
+        # ax: adversarial of x, ay: adversarial of y
         ax, ay, cxy, _ = self.add_loss_adv_classify3d_paired(a=self.oriX, b=self.oriY, net_d=self.net_d, classifier=self.classifier,
                                                              truth_adv=True, truth_classify=truth_classify)
-
+        # adversarial of xy (-) and y (+)
         loss_da = axy * 0.5 + ay * 0.5
         #loss_dc = 0.5 * cx + 0.5 * cy # + (cxy + cxx + cyy + cyx) * 0.5
+        # classify x (+) vs y (-)
         loss_dc = cxy
         loss_d = loss_da + loss_dc * self.hparams.dc0
 
@@ -189,10 +192,10 @@ class GAN(BaseModel):
             adv_a = self.criterionGAN(adv_a, torch.zeros_like(adv_a))
             adv_b = self.criterionGAN(adv_b, torch.zeros_like(adv_b))
 
-        if truth_classify:
-            classify_logits = nn.AdaptiveAvgPool2d(1)(classify_a - classify_b)
-        else:
-            classify_logits = nn.AdaptiveAvgPool2d(1)(classify_b - classify_a)
+        if truth_classify:  # if right knee pain
+            classify_logits = nn.AdaptiveAvgPool2d(1)(classify_a - classify_b)  # (right knee - left knee)
+        else:  # if left knee pain
+            classify_logits = nn.AdaptiveAvgPool2d(1)(classify_b - classify_a)  # (right knee - left knee)
 
         classify_logits, _ = torch.max(classify_logits, 0)
         classify_logits = classify_logits.unsqueeze(0)
