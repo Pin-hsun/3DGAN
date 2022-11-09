@@ -30,7 +30,7 @@ def linear_registration(im1, im2, warp_mode, steps):
     else:
         warp_matrix = np.eye(2, 3, dtype=np.float32)
     number_of_iterations = steps
-    termination_eps = 1e-6
+    termination_eps = 1e-10
     criteria = (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, number_of_iterations,  termination_eps)
     (cc, warp_matrix) = cv2.findTransformECC(im1, im2, warp_matrix, warp_mode, criteria=criteria)
 

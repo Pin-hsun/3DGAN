@@ -31,7 +31,7 @@ def linear_registration(im1, im2, warp_mode, steps):
     else:
         warp_matrix = np.eye(2, 3, dtype=np.float32)
     number_of_iterations = steps
-    termination_eps = 1e-6
+    termination_eps = 1e-10
     criteria = (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, number_of_iterations,  termination_eps)
     (cc, warp_matrix) = cv2.findTransformECC(im1, im2, warp_matrix, warp_mode, criteria=criteria)
 
@@ -80,8 +80,19 @@ def quick_compare_by_subject():
         imagesc(all, show=False, save=root + 'check0/' + sub + '.png')
 
 
+from scipy import interpolate
+
+def matrix_interp(m):
+    for i in range(m.shape[0]):
+        for j in range(m.shape[1]):
+            f = interpolate.interp1d(list(range(23)), m[i, j, :], kind='quadratic')
+            m[i, j, :] = f(list(range(23)))
+    return m
+
+
+
 if __name__ == '__main__':
-    #warp_mode = cv2.MOTION_HOMOGRAPHY#
+    #warp_mode = cv2.MOTION_AFFINE#
     warp_mode = cv2.MOTION_EUCLIDEAN
 
     # data
@@ -104,7 +115,7 @@ if __name__ == '__main__':
     os.makedirs(os.path.join(root, 'bp'), exist_ok=True)
     os.makedirs(os.path.join(root, 'check'), exist_ok=True)
 
-    for i in range(1):#list_a.shape[0])[:1]:
+    for i in range(10):#list_a.shape[0])[:1]:
         all_warp_matrix = []
         for j in range(23):
             print([i, j])
@@ -118,31 +129,56 @@ if __name__ == '__main__':
             s = tiff.imread(name_s)
             t = tiff.imread(name_t)
 
-            smax = s.max()
+            smax = 1#s.max()
             s = s / smax
-            t = t / t.max()
+            t = t / smax
             s = s.astype(np.float32)
             t = t.astype(np.float32)
             sc = s.copy()
             tc = t.copy()
 
-            _, warp_matrix = linear_registration(im1=tc, im2=sc, warp_mode=warp_mode, steps=500)
+            try:
+                _, warp_matrix = linear_registration(im1=tc, im2=sc, warp_mode=warp_mode, steps=500)
+            except:
+                if j == 0:
+                    warp_matrix = np.array([[1, 0, 0], [0, 1, 0]])
+                else:
+                    warp_matrix = all_warp_matrix[-1]
             all_warp_matrix.append(warp_matrix)
 
-        all_warp_matrix = np.stack(all_warp_matrix, )
+        all_warp_matrix = np.stack(all_warp_matrix, 2)
+        all_warp_matrix = matrix_interp(all_warp_matrix)
 
-        if 0:
-            sprime = apply_warp(s.shape, s, warp_matrix, warp_mode)
+        for j in range(23):
+            if labels[i] == 1:  # PAIN RIGHT
+                name_s = list_b[i, j]  # LEFT
+                name_t = list_a[i, j]  # RIGHT
+            else:  # PAIN LEFT
+                name_s = list_a[i, j]  # LEFT
+                name_t = list_b[i, j]  # RIGHT
+
+            s = tiff.imread(name_s)
+            t = tiff.imread(name_t)
+
+            smax = 1#s.max()
+            s = s / smax
+            t = t / t.max()
+            s = s.astype(np.float32)
+            t = t.astype(np.float32)
+
+            sprime = apply_warp(s.shape, s, all_warp_matrix[:, :, j], warp_mode)
             sprime = (sprime * smax).astype(np.uint16)
 
+            name = list_a[i, j].split('/')[-1]
+
             if labels[i] == 1:  # PAIN RIGHT
-                tiff.imsave(os.path.join(root, 'ap', name_t.split('/')[-1]), tiff.imread(name_t))  # RIGHT TARGET a
-                tiff.imsave(os.path.join(root, 'bp', name_t.split('/')[-1]), sprime)  # LEFT SOURCE b
+                tiff.imsave(os.path.join(root, 'ap', name), tiff.imread(list_a[i, j]))  # RIGHT TARGET a
+                tiff.imsave(os.path.join(root, 'bp', name), sprime)  # LEFT SOURCE b
             else:  # PAIN LEFT
-                tiff.imsave(os.path.join(root, 'bp', name_t.split('/')[-1]), tiff.imread(name_t))  # RIGHT TARGET b
-                tiff.imsave(os.path.join(root, 'ap', name_t.split('/')[-1]), sprime)  # LEFT SOURCE a
+                tiff.imsave(os.path.join(root, 'bp', name), tiff.imread(list_b[i, j]))  # RIGHT TARGET b
+                tiff.imsave(os.path.join(root, 'ap', name), sprime)  # LEFT SOURCE a
 
             z = quick_compare(sprime, t)
-            imagesc(z, show=False, save=os.path.join(root, 'check', name_t.split('/')[-1]))
+            imagesc(z, show=False, save=os.path.join(root, 'check', name))
 
 

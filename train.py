@@ -2,7 +2,7 @@ from __future__ import print_function
 import argparse
 import torch.nn as nn
 from torch.utils.data import DataLoader
-import os, shutil
+import os, shutil, time, tqdm
 from dotenv import load_dotenv
 
 from utils.make_config import load_json, save_json
@@ -35,6 +35,7 @@ parser.add_argument('--prj', type=str, help='name of the project')
 parser.add_argument('--models', dest='models', type=str, help='use which models')
 # Data
 parser.add_argument('--dataset', type=str)
+parser.add_argument('--preload', action='store_true')
 parser.add_argument('--split', type=str, help='split of data')
 parser.add_argument('--load3d', action='store_true', dest='load3d', default=False, help='do 3D')
 
@@ -117,6 +118,18 @@ if test_index is not None:
     test_loader = DataLoader(dataset=test_set, num_workers=args.threads, batch_size=args.batch_size, shuffle=False, pin_memory=True)
 else:
     test_loader = None
+
+
+# preload
+if args.preload:
+    tini = time.time()
+    print('Preloading...')
+    for i, x in enumerate(tqdm(train_loader)):
+        pass
+    if test_loader is not None:
+        for i, x in enumerate(tqdm(test_loader)):
+            pass
+    print('Preloading time: ' + str(time.time() - tini))
 
 
 # Logger
