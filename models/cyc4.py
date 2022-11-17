@@ -122,4 +122,4 @@ class GAN(BaseModel):
 
 
 # USAGE
-# CUDA_VISIBLE_DEVICES=0,1,2,3 python train.py --jsn wnwp3d --prj wnwp3d/cyc4/GdenuWBmcOct13 --mc --engine cyc4 -b 16 --netG descarnoumc --direction zyweak_zysb%xyweak_xysb
+# CUDA_VISIBLE_DEVICES=0 python train.py --jsn wnwp3d --prj wnwp3d/cyc4/GdenuWBmcOct13 --mc --models cyc4 -b 16 --netG descarnoumc --direction zyweak_zysb%xyweak_xysb

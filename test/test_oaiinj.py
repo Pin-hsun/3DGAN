@@ -63,7 +63,7 @@ class Pix2PixModel:
             net.train()
         self.net_g = net
 
-    def get_one_output(self, i, xy='x', alpha=None):
+    def get_one_output(self, i, alpha=None):
         # inputs
         x = self.test_set.__getitem__(i)
         name = x['filenames']
@@ -79,7 +79,7 @@ class Pix2PixModel:
         engine = args.engine
         test_method = getattr(__import__('models.' + engine), engine).GAN.test_method
 
-        output = test_method(self, self.net_g, img)
+        output = test_method(self.net_g, img, a=alpha/100)
         combined = combine(output, in_img, args.cmb)
 
         in_img = in_img.detach().cpu()[0, ::]
@@ -230,110 +230,35 @@ for epoch in range(*args.nepochs):
         outputall = []
 
         for alpha in np.linspace(*args.nalpha):
-            out_xy = list(map(lambda v: test_unit.get_one_output(v, 'x', alpha), args.irange))
+            out_xy = list(map(lambda v: test_unit.get_one_output(v, alpha), args.irange))
 
             [imgX, imgY, combined, output, names] = list(zip(*out_xy))
 
             diff_xy = [(x[1] - x[0]) for x in list(zip(combined, imgX))]
 
-            # MC
-            diffall.append([x.unsqueeze(3) for x in diff_xy])
-            combinedall.append([x.unsqueeze(3) for x in combined])
-            outputall.append([x.unsqueeze(3) for x in output])
-
-        # MC
-        [diffall, combinedall, outputall] = [list(zip(*x)) for x in [diffall, combinedall, outputall]]
-        diffall = [torch.cat(x, 3) for x in diffall]
-        combinedall = [torch.cat(x, 3) for x in combinedall]
-        outputall = [torch.cat(x, 3) for x in outputall]
-
-        diffvar = [x.std(3) for x in diffall]
-        diffmean = [x.mean(3) for x in diffall]
-
-        combinedmean = [x.mean(3) for x in combinedall]
-        combinedvar = [x.std(3) for x in combinedall]
-
-        outputmean = [x.mean(3) for x in outputall]
-        outputvar = [x.std(3) for x in outputall]
-
-        outputsig = []
-        for i in range(len(outputmean)):
-            outputsig.append(torch.div(1-outputmean[i], outputvar[i]+0.0001))
-
-        diffsig = []
-        for i in range(len(diffmean)):
-            diffsig.append(torch.div(diffmean[i], diffvar[i]+0.0001))
-
-        if 1:
-            # average seg
-            #combinedall = [x[0,::] for x in combinedall]
-            xseg = test_unit.get_all_seg([imgX])[0]
-            xyseg = test_unit.get_all_seg([combinedmean])[0]
-
-            # single seg over all combined
-            ax = [[combinedall[i][:, :, :, j] for j in range(combinedall[0].shape[3])] for i in range(len(combinedall))]
-            axseg = [test_unit.get_all_seg([ax[i]])[0] for i in range(len(ax))]
-            # imagesc(torch.var((torch.stack(axseg, 2) == 3)/1 + (torch.stack(axseg, 2) == 1)/1, 2))
-
-            bonesegvar = [torch.var((torch.stack(axseg[i], 2) == 3)/1 +
-                                    (torch.stack(axseg[i], 2) == 1)/1, 2) for i in range(len(ax))]
-            bonesegvar = [x.unsqueeze(0) for x in bonesegvar]
-
-            cartilagesegvar = [torch.var((torch.stack(axseg[i], 2) == 2)/1 +
-                                         (torch.stack(axseg[i], 2) == 4)/1, 2) for i in range(len(ax))]
-            cartilagesegvar = [x.unsqueeze(0) for x in cartilagesegvar]
-
-            # Segmentation
-            mask_bone = [0, 2, 4]
-            mask_eff = [1, 3]
-
-            tag = False
-            diffseg0 = seperate_by_seg(x=diffmean, seg_used=xyseg, masked=mask_bone, if_absolute=True)
-            diffseg1 = seperate_by_seg(x=diffmean, seg_used=xyseg, masked=mask_eff, if_absolute=True)
-            diffvar0 = seperate_by_seg(x=diffvar, seg_used=xyseg, masked=mask_bone, if_absolute=False)
-            diffvar1 = seperate_by_seg(x=diffvar, seg_used=xyseg, masked=mask_eff, if_absolute=False)
-
-            outputsig0 = seperate_by_seg(x=outputsig, seg_used=xyseg, masked=mask_bone, if_absolute=tag)
-            outputsig1 = seperate_by_seg(x=outputsig, seg_used=xyseg, masked=mask_eff, if_absolute=tag)
-
-            diffsig0 = seperate_by_seg(x=diffsig, seg_used=xyseg, masked=mask_bone, if_absolute=tag)
-            diffsig1 = seperate_by_seg(x=diffsig, seg_used=xyseg, masked=mask_eff, if_absolute=tag)
-
-            # significance
-            diffsig0 = []
-            diffsig1 = []
-            for i in range(len(diffvar0)):
-                diffsig0.append(torch.div(diffseg0[i], diffvar0[i]+0.0001))
-                diffsig1.append(torch.div(diffseg1[i], diffvar1[i]+0.0001))
-            xseg = [x.unsqueeze(0) for x in xseg]
-            xyseg = [x.unsqueeze(0) for x in xyseg]
-        # Print
-        if 0:
-            to_show = [[to_rgb(x) for x in diffseg0],
-                       [to_rgb(x) for x in diffseg1],
-                       [to_rgb(x) for x in diffsig0],
-                       [to_rgb(x) for x in diffsig1]]
-            to_print(to_show, save_name=os.path.join("outputs/results", args.dataset, args.prj,
-                                                     str(epoch) + '_' + str(alpha) + '_' + str(ii).zfill(4) + 'm'))
-        elif 0:
-            to_show = [imgX, combined, diffseg0, diffseg1]
-            to_print(to_show, save_name=os.path.join("outputs/results", args.dataset, args.prj,
-                                                     str(epoch) + '_' + str(alpha) + '_' + str(ii).zfill(4) + 'm'))
-
-        if args.all:
-            for item in ['diffmean']:#['cartilagesegvar', 'xyseg', 'xseg']:
-                root = '/media/ExtHDD01/Dataset/paired_images/womac3/full/new'
-                destination = os.path.join(root, item)
-                os.makedirs(destination, exist_ok=True)
-                x = eval(item)
-                tiff.imwrite(os.path.join(destination, names[0][0].split('/')[-1]),
-                             x[0][0, ::].numpy().astype(np.float32))
-        else:
-            dall = [x + y for x, y in zip(diffseg0, diffseg1)]
-            to_show = [imgX, combinedmean, diffseg0, diffseg1]
+            # print
+            to_show = [imgX, combined, diff_xy]
             #to_show = [imgX, combined, [to_rgb(x) for x in diffseg0], [to_rgb(x) for x in diffseg1]]
             to_print(to_show, save_name=os.path.join("outputs/results", args.dataset, args.prj,
                                                      str(epoch) + '_' + str(alpha) + '_' + str(ii).zfill(4) + 'm'))
+
+        if 0:
+            # MC
+            [diffall, combinedall, outputall] = [list(zip(*x)) for x in [diffall, combinedall, outputall]]
+            diffall = [torch.cat(x, 3) for x in diffall]
+            combinedall = [torch.cat(x, 3) for x in combinedall]
+            outputall = [torch.cat(x, 3) for x in outputall]
+
+            diffvar = [x.std(3) for x in diffall]
+            diffmean = [x.mean(3) for x in diffall]
+
+            combinedmean = [x.mean(3) for x in combinedall]
+            combinedvar = [x.std(3) for x in combinedall]
+
+            outputmean = [x.mean(3) for x in outputall]
+            outputvar = [x.std(3) for x in outputall]
+
+
 
             #to_show = [outputsig0, outputsig1]
             #to_print(to_show, save_name=os.path.join("outputs/results", args.dataset, args.prj,

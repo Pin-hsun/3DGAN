@@ -35,48 +35,42 @@ class GAN(BaseModel):
     @staticmethod
     def add_model_specific_args(parent_parser):
         parser = parent_parser.add_argument_group("LitModel")
-        parser.add_argument("--lbx", dest='lbx', type=float, default=0)
+        parser.add_argument("--lbx", dest='lbx', type=float, default=1)
         parser.add_argument("--dc0", dest='dc0', type=float, default=1)
         return parent_parser
 
-    def test_method(self, net_g, img):
-        self.oriX = img[0]
-        self.imgXY, self.imgXX = net_g(self.oriX, a=None)
-        self.imgXY = nn.Sigmoid()(self.imgXY)  # mask
-        self.imgXX = nn.Sigmoid()(self.imgXX)  # mask
+    @staticmethod
+    def test_method(net_g, img, a=None):
+        oriX = img[0]
+        imgXY, = net_g(oriX, a=a)
+        imgXY = nn.Sigmoid()(imgXY)  # mask
 
-        return self.imgXY
+        return imgXY
 
     def generation(self):
+        img = self.batch['img']
+        self.filenames = self.batch['filenames']
         id = self.filenames[0][0].split('/')[-1].split('_')[0]
         paindiff = np.abs(self.df.loc[self.df['ID'] == int(id), ['V00WOMKPR']].values[0][0]\
                    - self.df.loc[self.df['ID'] == int(id), ['V00WOMKPL']].values[0][0])
+        paindiff = (paindiff / 10)
 
-        img = self.batch['img']
-        self.filenames = self.batch['filenames']
         self.oriX = img[0]
         self.oriY = img[1]
 
-        self.imgXY, self.imgXX = self.net_g(self.oriX, a=None)
-        #self.imgYY, self.imgYX = self.net_g(self.oriY, a=None)
-
+        self.imgXY, = self.net_g(self.oriX, a=paindiff)
         self.imgXY = nn.Sigmoid()(self.imgXY)  # mask
-        #self.imgYY = nn.Sigmoid()(self.imgYY)  # mask
         self.imgXY = combine(self.imgXY, self.oriX, method='mul')
+
+        self.imgXX, = self.net_g(self.oriX, a=0)
+        self.imgXX = nn.Sigmoid()(self.imgXX)  # mask
+        self.imgXX = combine(self.imgXX, self.oriX, method='mul')
+
         #self.imgYY = combine(self.imgYY, self.oriY, method='mul')
 
     def backward_g(self, inputs):
         # ADV(XY)+ -
         axy, _ = self.add_loss_adv_classify3d(a=self.imgXY, net_d=self.net_d, truth_adv=True, truth_classify=False)
-
-        # ADV(XX)+ +
-        #axx, cxx = self.add_loss_adv_classify(a=self.imgXX, net_d=self.net_d, truth_adv=True, truth_classify=True)
-
-        # ADV(YY)+ -
-        #ayy, cyy = self.add_loss_adv_classify(a=self.imgYY, net_d=self.net_d, truth_adv=True, truth_classify=False)
-
-        # ADV(YX)+ +
-        #ayx, cyx = self.add_loss_adv_classify(a=self.imgYX, net_d=self.net_d, truth_adv=True, truth_classify=True)
 
         # L1(XY, Y)
         loss_l1 = self.add_loss_l1(a=self.imgXY, b=self.oriY, coeff=self.hparams.lamb)
@@ -99,24 +93,13 @@ class GAN(BaseModel):
         # ADV(XY)- -
         # aversarial of xy
         axy, _ = self.add_loss_adv_classify3d(a=self.imgXY, net_d=self.net_d, truth_adv=False, truth_classify=False)
-        # ADV(XX)- +
-        #axx, cxx = self.add_loss_adv_classify(a=self.imgXX, net_d=self.net_d, truth_adv=False, truth_classify=True)
-        # ADV(YY)- -
-        #ayy, cyy = self.add_loss_adv_classify(a=self.imgYY, net_d=self.net_d, truth_adv=False, truth_classify=False)
-        # ADV(YX)- +
-        #ayx, cyx = self.add_loss_adv_classify(a=self.imgYX, net_d=self.net_d, truth_adv=False, truth_classify=True)
 
-        # ADV(X)+ +
-        #ax, cx = self.add_loss_adv_classify3d(a=self.oriX, net_d=self.net_d, truth_adv=True, truth_classify=True)
-        # ADV(Y)+ -
-        #ay, cy = self.add_loss_adv_classify3d(a=self.oriY, net_d=self.net_d, truth_adv=True, truth_classify=False)
         truth_classify = (side == 'RIGHT')
         # ax: adversarial of x, ay: adversarial of y
         ax, ay, cxy, _ = self.add_loss_adv_classify3d_paired(a=self.oriX, b=self.oriY, net_d=self.net_d, classifier=self.classifier,
                                                              truth_adv=True, truth_classify=truth_classify)
         # adversarial of xy (-) and y (+)
         loss_da = axy * 0.5 + ay * 0.5
-        #loss_dc = 0.5 * cx + 0.5 * cy # + (cxy + cxx + cyy + cyx) * 0.5
         # classify x (+) vs y (-)
         loss_dc = cxy
         loss_d = loss_da + loss_dc * self.hparams.dc0
@@ -124,49 +107,6 @@ class GAN(BaseModel):
         self.log('da', loss_da, on_step=False, on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
         self.log('dc', loss_dc, on_step=False, on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
         return {'sum': loss_d, 'loss_d': loss_d}
-
-    def validation_step(self, batch, batch_idx):
-        self.batch = batch
-        if self.hparams.load3d:  # if working on 3D input
-            self.batch = batch
-            if self.hparams.load3d:  # if working on 3D input, bring the Z dimension to the first and combine with batch
-                self.batch['img'] = self.reshape_3d(self.batch['img'])
-
-        img = self.batch['img']
-        self.filenames = self.batch['filenames']
-        self.oriX = img[0]
-        self.oriY = img[1]
-
-        #
-        id = self.filenames[0][0].split('/')[-1].split('_')[0]
-        side = self.df.loc[self.df['ID'] == int(id), ['SIDE']].values[0][0]
-
-        truth_classify = (side == 'RIGHT')
-        ax, ay, cxy, lxy = self.add_loss_adv_classify3d_paired(a=self.oriX, b=self.oriY, net_d=self.net_d, classifier=self.classifier,
-                                                     truth_adv=True, truth_classify=truth_classify)
-        loss_dc = cxy
-        self.log('valdc', loss_dc, on_step=False, on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
-
-        # AUC metrics
-        if truth_classify:
-            label = torch.zeros(1).type(torch.LongTensor)
-        else:
-            label = torch.ones(1).type(torch.LongTensor)
-        out = lxy[:, :, 0, 0]
-        self.all_label.append(label)
-        self.all_out.append(out.cpu().detach())
-
-        return loss_dc
-
-    def validation_epoch_end(self, x):
-        all_out = torch.cat(self.all_out, 0)
-        all_label = torch.cat(self.all_label, 0)
-        metrics = GetAUC()(all_label, all_out)
-
-        auc = torch.from_numpy(np.array(metrics)).cuda()
-        for i in range(len(auc)):
-            self.log('auc' + str(i), auc[i], on_step=False, on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
-        return metrics
 
     def add_loss_adv_classify3d(self, a, net_d, truth_adv, truth_classify, log=None):
         adv_logits, classify_logits = net_d(a)
@@ -213,6 +153,9 @@ class GAN(BaseModel):
             classify = self.criterionGAN(classify_logits, torch.zeros_like(classify_logits))
 
         return adv_a, adv_b, classify, classify_logits
+
+
+
 
 
 # CUDA_VISIBLE_DEVICES=0,1,2 python train.py --jsn womac3 --prj Gds/descar3/Gdsmc3DB --mc --engine descar3 --netG dsmc --netD descar --direction areg_b --index --gray --load3d --final none

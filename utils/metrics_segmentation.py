@@ -11,12 +11,10 @@ class SegmentationCrossEntropyLoss(nn.Module):
         """ length of the components of loss to display """
         return 1
 
-    def forward(self, output, labels):
-        out = output[0]
-        true_masks = labels[0]
+    def forward(self, masks_probs, true_masks):
         #masks_probs = out.view(out.shape[0] * out.shape[1], out.shape[2], out.shape[3],
         #                       out.shape[4])  # (B * T, C, H, W)
-        masks_probs = out.permute(0, 2, 3, 1)  # (B, H, W, C)
+        masks_probs = masks_probs.permute(0, 2, 3, 1)  # (B, H, W, C)
         masks_probs = masks_probs.reshape(masks_probs.shape[0] * masks_probs.shape[1] * masks_probs.shape[2],
                                           masks_probs.shape[3])  # (B * H * W, C)
         true_masks = true_masks.view(-1)  # (B * T * H * W)
@@ -71,3 +69,8 @@ class SegmentationDiceCoefficientDual(nn.Module):
         out = torch.cat([out[:, 0, ::], out[:, 1, ::]], 0)
         dice = self.SegmentationDiceCoefficient( true_masks, out)
         return dice
+
+
+if __name__ == '__main__':
+    loss = SegmentationCrossEntropyLoss()
+    out = loss(torch.rand(7, 2, 50, 50), torch.rand(7, 1, 50, 50).type(torch.LongTensor))

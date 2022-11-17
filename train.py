@@ -2,14 +2,14 @@ from __future__ import print_function
 import argparse
 import torch.nn as nn
 from torch.utils.data import DataLoader
-import os, shutil, time, tqdm
+import os, shutil, time
+from tqdm import tqdm
 from dotenv import load_dotenv
 
 from utils.make_config import load_json, save_json
 import json
 import pytorch_lightning as pl
 from pytorch_lightning import loggers as pl_loggers
-import pandas as pd
 from dataloader.data_multi import MultiData as Dataset
 
 
@@ -102,6 +102,8 @@ else:
 # Finalize Arguments and create files for logging
 args = prepare_log(args)
 
+print(args)
+
 # Load Dataset and DataLoader
 from env.custom_data_utils import customize_data_split
 folder, train_index, test_index = customize_data_split(dataset=args.dataset, split=args.split)
@@ -133,7 +135,13 @@ if args.preload:
 
 
 # Logger
-logger = pl_loggers.TensorBoardLogger(os.environ.get('LOGS') + args.dataset + '/', name=args.prj)
+if 1:
+    from pytorch_lightning.loggers.neptune import NeptuneLogger
+    logger = NeptuneLogger(
+        api_key="ANONYMOUS",
+        project="test")
+else:
+    logger = pl_loggers.TensorBoardLogger(os.environ.get('LOGS') + args.dataset + '/', name=args.prj)
 
 
 # Trainer

@@ -56,8 +56,6 @@ class BaseModel(pl.LightningModule):
         self.hparams.update(hparams)
         self.save_hyperparameters(self.hparams)
 
-        self.init_networks_optimizer_scheduler()
-
         # Define Loss Functions
         self.CELoss = CrossEntropyLoss()
         self.criterionL1 = nn.L1Loss()
@@ -83,9 +81,10 @@ class BaseModel(pl.LightningModule):
         self.net_g_scheduler = get_scheduler(self.optimizer_g, self.hparams)
         self.net_d_scheduler = get_scheduler(self.optimizer_d, self.hparams)
 
-
     def configure_optimizers(self):
         netg_parameters = []
+        print(self.netd_names.keys())
+        print('optimizer being called')
         for g in self.netg_names.keys():
             netg_parameters = netg_parameters + list(getattr(self, g).parameters())
 

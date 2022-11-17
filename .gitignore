@@ -10,7 +10,7 @@ __pycache__/
 *.pth
 *.png
 
-models/old/
+
 
 # C extensions
 *.so
@@ -30,3 +30,4 @@ result/
 Untitled/
 notinuse/
 submodels/
+models/old/

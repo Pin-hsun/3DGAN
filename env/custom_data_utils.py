@@ -1,5 +1,6 @@
 import pandas as pd
 
+
 def customize_data_split(dataset, split=None):
     if split is not None:
         folder = '/full/'
@@ -14,6 +15,14 @@ def customize_data_split(dataset, split=None):
             elif split == 'b':
                 train_index = range(0, 497)
                 test_index = range(497, 710)
+
+        if dataset == 'oaiseg':
+            if split == 'a':
+                train_index = range(0, 7769)
+                test_index = range(7769, 9924)
+                #train_index = range(0, 2282)
+                #test_index = range(2282, 9924)
+
     else:
         folder = '/train/'
         train_index = None

@@ -2,7 +2,6 @@ import torch, copy
 import torch.nn as nn
 import torchvision
 import torch.optim as optim
-from networks.loss import GANLoss
 from math import log10
 import time, os
 import pytorch_lightning as pl
@@ -10,7 +9,7 @@ from utils.metrics_segmentation import SegmentationCrossEntropyLoss
 from utils.metrics_classification import CrossEntropyLoss, GetAUC
 from utils.data_utils import *
 from models.base import BaseModel, combine
-
+import pandas as pd
 
 class GAN(BaseModel):
     """
@@ -18,7 +17,8 @@ class GAN(BaseModel):
     """
     def __init__(self, hparams, train_loader, test_loader, checkpoints):
         BaseModel.__init__(self, hparams, train_loader, test_loader, checkpoints)
-        self.net_dY = copy.deepcopy(self.net_d)
+
+        self.init_networks_optimizer_scheduler()
 
     @staticmethod
     def add_model_specific_args(parent_parser):
@@ -30,6 +30,7 @@ class GAN(BaseModel):
         self.oriX = img[0]
 
         self.imgX0, self.imgX1 = net_g(self.oriX, a=None)
+        self.imgX0 = nn.Sigmoid()(self.imgX0)  # mask
         return self.imgX0
 
     def generation(self):

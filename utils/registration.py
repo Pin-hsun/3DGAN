@@ -7,6 +7,7 @@ import torch.nn as nn
 import torch
 from utils.data_utils import imagesc
 import scipy.ndimage
+import pandas as pd
 
 def quick_compare(x0, y0):
     x = 1 * x0
@@ -79,94 +80,114 @@ def quick_compare_by_subject():
         imagesc(all, show=False, save=root + 'check0/' + sub + '.png')
 
 
+from scipy import interpolate
+
+def matrix_interp(m):
+    for i in range(m.shape[0]):
+        for j in range(m.shape[1]):
+            f = np.polyfit(list(range(23)), m[i, j, :], 2)
+            m[i, j, :] = np.poly1d(f)(list(range(23)))
+            #f = interpolate.interp1d(list(range(23)), m[i, j, :], kind='quadratic')
+            #m[i, j, :] = f(list(range(23)))
+    return m
+
+
+
 if __name__ == '__main__':
-    netg_bone = torch.load('submodels/model_seg_ZIB.pth')
-    netg_bone.eval()
-    netg_t2d = torch.load('submodels/tse_dess_unet32.pth')
-    if 0:  # t2d
-        list_a = sorted(glob.glob('/media/ExtHDD01/Dataset/paired_images/t2d/full/t/*'))[1::2]
-        list_b = sorted(glob.glob('/media/ExtHDD01/Dataset/paired_images/t2d/full/d/*'))[1::2]
-
-    root  = '/media/ExtHDD01/Dataset/paired_images/womac3/full/'
-    list_a = sorted(glob.glob(root + 'b/*'))
-    list_b = sorted(glob.glob(root + 'a/*'))
-    list_breg = sorted(glob.glob(root + 'breg/*'))
-
-    old_name = '/b/'
-    new_name = '/breg/'
-
+    #warp_mode = cv2.MOTION_AFFINE#
     warp_mode = cv2.MOTION_EUCLIDEAN
 
-    failed = sorted(set([x.split('/')[-1] for x in list_a]) - set([x.split('/')[-1] for x in list_breg]))
+    # data
+    if 1:
+        root = '/media/ExtHDD01/Dataset/paired_images/womac4/full/'
+        # labels
+        x = pd.read_csv('/home/ghc/Dropbox/TheSource/scripts/OAI_API/meta/womac4min0.csv')
+        labels = x.loc[x['SIDE'] == 'RIGHT']['V$$WOMKPR'] > x.loc[x['SIDE'] == 'RIGHT']['V$$WOMKPL']
+        labels = np.array(labels)
+    else:
+        root = '/media/ExtHDD01/Dataset/paired_images/womac3/full/'
+        df = pd.read_csv('/media/ExtHDD01/OAI/OAI_extracted/OAI00womac3/OAI00womac3.csv')
+        subjects = [(('SAG_IW_TSE_cropped', str(x), 'RIGHT', '00'),
+                     ('SAG_IW_TSE_cropped', str(x), 'LEFT', '00')) for x in sorted(df['ID'].unique())]
+        labels = [x for x in df.loc[df['SIDE'] == 1, 'P01KPN#EV'].astype(np.int8)]
+        labels = np.array(labels)
 
-    list_s = [root + 'b/' + x for x in failed]
-    list_t = [root + 'a/' + x for x in failed]
 
-    for i in range(len(list_s)):
-        name_s = list_s[i]
-        name_t = list_t[i]
-        #i = 26
-        #name_s, name_t = list(zip(list_s, list_t))[i]
+    list_a = sorted(glob.glob(root + 'b/*'))
+    list_b = sorted(glob.glob(root + 'a/*'))
 
-        s = tiff.imread(name_s)
-        t = tiff.imread(name_t)
+    list_a = np.reshape(np.array(list_a), (-1, 23))
+    list_b = np.reshape(np.array(list_b), (-1, 23))
 
-        smax = s.max()
+    #labels = [(x for x in labels]
+    #labels = np.concatenate([[x[0]] * 23 for x in labels], 0)
 
-        s = s / smax
-        t = t / smax
+    #
+    os.makedirs(os.path.join(root, 'ap'), exist_ok=True)
+    os.makedirs(os.path.join(root, 'bp'), exist_ok=True)
+    os.makedirs(os.path.join(root, 'check'), exist_ok=True)
 
-        s = s.astype(np.float32)
-        t = t.astype(np.float32)
+    for i in range(list_a.shape[0]):
+        all_warp_matrix = []
+        for j in range(23):
+            print([i, j])
+            if labels[i] == 1:  # PAIN RIGHT
+                name_s = list_b[i, j]  # LEFT
+                name_t = list_a[i, j]  # RIGHT
+            else:  # PAIN LEFT
+                name_s = list_a[i, j]  # LEFT
+                name_t = list_b[i, j]  # RIGHT
 
-        try:
+            s = tiff.imread(name_s)
+            t = tiff.imread(name_t)
+
+            smax = 1#s.max()
+            s[s >= 400] = 400
+            t[t >= 400] = 400
+            s = s / smax
+            t = t / smax
+            s = s.astype(np.float32)
+            t = t.astype(np.float32)
             sc = s.copy()
             tc = t.copy()
 
-            bprime, warp_matrix = linear_registration(im1=tc, im2=sc, warp_mode=warp_mode, steps=500)
-            sprime = apply_warp(s.shape, s, warp_matrix, warp_mode)
+            try:
+                _, warp_matrix = linear_registration(im1=tc, im2=sc, warp_mode=warp_mode, steps=500)
+            except:
+                if j == 0:
+                    warp_matrix = np.array([[1, 0, 0], [0, 1, 0]])
+                else:
+                    warp_matrix = all_warp_matrix[-1]
+            all_warp_matrix.append(warp_matrix)
+
+        all_warp_matrix = np.stack(all_warp_matrix, 2)
+        all_warp_matrix = matrix_interp(all_warp_matrix)
+
+        for j in range(23):
+            if labels[i] == 1:  # PAIN RIGHT
+                name_s = list_b[i, j]  # LEFT
+                name_t = list_a[i, j]  # RIGHT
+            else:  # PAIN LEFT
+                name_s = list_a[i, j]  # LEFT
+                name_t = list_b[i, j]  # RIGHT
+
+            s = tiff.imread(name_s)
+            t = tiff.imread(name_t)
+
+            sprime = apply_warp(s.shape, s, all_warp_matrix[:, :, j], warp_mode)
             sprime = (sprime * smax).astype(np.uint16)
 
-            tiff.imsave(name_s.replace(old_name, new_name), sprime)
+            name = list_a[i, j].split('/')[-1]
+
+            if 1:
+                if labels[i] == 1:  # PAIN RIGHT
+                    tiff.imsave(os.path.join(root, 'ap', name), tiff.imread(list_a[i, j]))  # RIGHT TARGET a
+                    tiff.imsave(os.path.join(root, 'bp', name), sprime)  # LEFT SOURCE b
+                else:  # PAIN LEFT
+                    tiff.imsave(os.path.join(root, 'bp', name), tiff.imread(list_b[i, j]))  # RIGHT TARGET b
+                    tiff.imsave(os.path.join(root, 'ap', name), sprime)  # LEFT SOURCE a
+
             z = quick_compare(sprime, t)
-            imagesc(z, show=False, save=name_s.replace(old_name, '/check/'))
-
-        except:
-            sc = s.copy()
-            tc = t.copy()
-
-            sc = 2 * sc - 1
-            tc = 2 * tc - 1
-
-            sc = transforms.Normalize((0.5), (0.5))(torch.from_numpy(sc).unsqueeze(0).unsqueeze(0))
-            sc = netg_t2d(sc.repeat(1, 3, 1, 1).cuda())
-            sc = (torch.argmax(netg_bone(sc[0])[0], 0),)
-            sc = sc[0].detach().cpu().numpy()
-            sc = sc.astype(np.uint8)
-            # sc = sc[0, 0, ::]
-
-            tc = transforms.Normalize((0.5), (0.5))(torch.from_numpy(tc).unsqueeze(0).unsqueeze(0))
-            tc = netg_t2d(tc.repeat(1, 3, 1, 1).cuda())
-            tc = (torch.argmax(netg_bone(tc[0])[0], 0),)
-            tc = tc[0].detach().cpu().numpy()
-            tc = tc.astype(np.uint8)
-            try:
-                bprime, warp_matrix = linear_registration(im1=tc, im2=sc, warp_mode=warp_mode, steps=1000)
-                sprime = apply_warp(s.shape, s, warp_matrix, warp_mode)
-                sprime = (sprime * smax).astype(np.uint16)
-
-                tiff.imsave(name_s.replace(old_name, new_name), sprime)
-                z = quick_compare(sprime, t)
-                imagesc(z, show=False, save=name_s.replace(old_name, '/check2/'))
-            except:
-                # center of mass
-                com_tc = scipy.ndimage.measurements.center_of_mass(tc)
-                com_sc = scipy.ndimage.measurements.center_of_mass(sc)
-                warp_matrix = np.array([[1,0, com_sc[1]-com_tc[1]],[0,1, com_sc[0]-com_tc[0]]])
-                sprime = apply_warp(s.shape, s, warp_matrix, warp_mode)
-                sprime = (sprime * smax).astype(np.uint16)
-                z = quick_compare(sprime, t)
-                imagesc(z, show=False, save=name_s.replace(old_name, '/check2/'))
-                tiff.imsave(name_s.replace(old_name, new_name), sprime)
+            imagesc(z, show=False, save=os.path.join(root, 'check', name))
 
 
