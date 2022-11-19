@@ -4,12 +4,62 @@ import torchvision
 import torch.optim as optim
 from networks.networks import get_scheduler
 from networks.loss import GANLoss
+import torchvision
 
 import time, os
 import pytorch_lightning as pl
 from utils.metrics_segmentation import SegmentationCrossEntropyLoss
 from utils.metrics_classification import CrossEntropyLoss, GetAUC
 from utils.data_utils import *
+from neptune.new.types import File
+from pytorch_lightning.utilities import rank_zero_only
+import torchmetrics
+
+
+
+class NeptuneHelper():
+    def __init__(self):
+        self.to_print = []
+
+    def clear(self):
+        self.to_print = []
+
+    def append(self, x):
+        self.to_print.append(x)
+
+    @rank_zero_only
+    def print(self, logger, epoch, destination="train/misclassified_images"):
+        if len(self.to_print) > 0:  # if there is something to print
+            to_print = [[self.to_print[j][i, 0, :, :].detach().cpu() for i in range(5, 12)] for j in range(len(self.to_print))]
+            to_print = [torch.cat(x, 1) for x in to_print]
+            to_print = torch.cat(to_print, 0)
+            imagesc(to_print, show=False, save='temp/v' + str(epoch).zfill(3) + '.png')
+
+            grid = torchvision.utils.make_grid(to_print)[0,::]
+            logger.experiment[destination].log(File.as_image(grid))
+
+
+class MyAccuracy():
+    def __init__(self, dist_sync_on_step=False):
+        # call `self.add_state`for every internal state that is needed for the metrics computations
+        # dist_reduce_fx indicates the function that should be used to reduce
+        # state from multiple processes
+        super().__init__(dist_sync_on_step=dist_sync_on_step)
+
+        self.add_state("correct", default=torch.tensor(0), dist_reduce_fx="sum")
+        self.add_state("total", default=torch.tensor(0), dist_reduce_fx="sum")
+
+    def update(self, preds: torch.Tensor, target: torch.Tensor):
+        # update metric states
+        preds, target = self._input_format(preds, target)
+        assert preds.shape == target.shape
+
+        self.correct += torch.sum(preds == target)
+        self.total += target.numel()
+
+    def compute(self):
+        # compute final result
+        return self.correct.float() / self.total
 
 class Namespace:
     def __init__(self, **kwargs):
@@ -50,7 +100,7 @@ class BaseModel(pl.LightningModule):
         self.loss_g_names = ['loss_g']
         self.loss_d_names = ['loss_d']
 
-        # hyperparameters
+        # Hyper-parameters
         hparams = {x: vars(hparams)[x] for x in vars(hparams).keys() if x not in hparams.not_tracking_hparams}
         hparams.pop('not_tracking_hparams', None)
         self.hparams.update(hparams)
@@ -71,6 +121,8 @@ class BaseModel(pl.LightningModule):
 
         self.all_label = []
         self.all_out = []
+
+        self.log_helper = NeptuneHelper()
 
     def init_networks_optimizer_scheduler(self):
         # set networks
@@ -127,17 +179,19 @@ class BaseModel(pl.LightningModule):
             self.batch['img'] = self.reshape_3d(self.batch['img'])
 
         if optimizer_idx == 0:
-            imgs = self.generation()
-            loss_d = self.backward_d(imgs)
-            for name in self.loss_d_names:
-                self.log(name, loss_d[name], on_step=False, on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
+            self.generation()
+            loss_d = self.backward_d()
+            for k in list(loss_d.keys()):
+                if k is not 'sum':
+                    self.log(k, loss_d[k], on_step=False, on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
             return loss_d['sum']
 
         if optimizer_idx == 1:
-            imgs = self.generation()
-            loss_g = self.backward_g(imgs)
-            for name in self.loss_g_names:
-                self.log(name, loss_g[name], on_step=False, on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
+            self.generation()  # why there are two generation?
+            loss_g = self.backward_g()
+            for k in list(loss_g.keys()):
+                if k is not 'sum':
+                    self.log(k, loss_g[k], on_step=False, on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
             return loss_g['sum']
 
     def training_epoch_end(self, outputs):
@@ -156,20 +210,46 @@ class BaseModel(pl.LightningModule):
                     torch.save(getattr(self, name), path_d)
                     print("Checkpoint saved to {}".format(path_d))
 
-        self.epoch += 1
         self.net_g_scheduler.step()
         self.net_d_scheduler.step()
 
         self.all_label = []
         self.all_out = []
+        self.epoch += 1
+
+    #@rank_zero_only
+    def validation_step(self, batch, batch_idx):
+        self.batch_idx = batch_idx
+        self.batch = batch
+        if self.hparams.load3d:  # if working on 3D input, bring the Z dimension to the first and combine with batch
+            self.batch['img'] = self.reshape_3d(self.batch['img'])
+
+        self.generation()
+        id = self.batch['filenames'][0][0].split('/')[-1].split('_')[0]
+        #if id in ['9026695', '9039627']:
+        if self.batch_idx in [5, 6, 7]:
+            self.log_helper.append(self.oriX)
+            self.log_helper.append(self.imgXY)
+
+    def validation_epoch_end(self, x):
+        self.log_helper.print(logger=self.logger, epoch=self.epoch)
+        self.log_helper.clear()
+
+    def get_progress_bar_dict(self):
+        tqdm_dict = super().get_progress_bar_dict()
+        if 'v_num' in tqdm_dict:
+            del tqdm_dict['v_num']
+        if 'loss' in tqdm_dict:
+            del tqdm_dict['loss']
+        return tqdm_dict
 
     def generation(self):
         pass
 
-    def backward_g(self, inputs):
+    def backward_g(self):
         pass
 
-    def backward_d(self, inputs):
+    def backward_d(self):
         pass
 
     def set_networks(self):

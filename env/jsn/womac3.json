@@ -41,6 +41,7 @@
             "legacy": false,
             "mode": "dummy",
             "port": "dummy",
+            "irange": [40, 166, 214, 449, 953, 1440, 1532, 1612],
             "not_tracking_hparams": ["mode", "port", "epoch_load", "legacy", "threads", "test_batch_size"]
         },
     "test":

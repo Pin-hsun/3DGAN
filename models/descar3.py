@@ -65,7 +65,7 @@ class GAN(BaseModel):
         self.imgXY = combine(self.imgXY, self.oriX, method='mul')
         #self.imgYY = combine(self.imgYY, self.oriY, method='mul')
 
-    def backward_g(self, inputs):
+    def backward_g(self):
         # ADV(XY)+ -
         axy, _ = self.add_loss_adv_classify3d(a=self.imgXY, net_d=self.net_d, truth_adv=True, truth_classify=False)
 
@@ -93,7 +93,7 @@ class GAN(BaseModel):
         #self.log('gc', loss_gc, on_step=False, on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
         return {'sum': loss_g, 'loss_g': loss_g}
 
-    def backward_d(self, inputs):
+    def backward_d(self):
         id = self.filenames[0][0].split('/')[-1].split('_')[0]
         side = self.df.loc[self.df['ID'] == int(id), ['SIDE']].values[0][0]
         # ADV(XY)- -

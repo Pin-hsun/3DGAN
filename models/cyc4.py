@@ -67,7 +67,7 @@ class GAN(BaseModel):
             self.idt_Xw, self.idt_Xo = self.net_gYX(torch.cat([img[0], img[1]], 1), a=None)
             self.idt_Yw, self.idt_Yo, = self.net_gXY(torch.cat([img[2], img[3]], 1), a=None)
 
-    def backward_g(self, inputs):
+    def backward_g(self):
         loss_g = 0
         # ADV(XYw)+
         loss_g += self.add_loss_adv(a=self.imgXYw, net_d=self.net_dYw, coeff=1, truth=True)
@@ -100,7 +100,7 @@ class GAN(BaseModel):
 
         return {'sum': loss_g, 'loss_g': loss_g}
 
-    def backward_d(self, inputs):
+    def backward_d(self):
         loss_d = 0
         # ADV(XY)-
         loss_d += self.add_loss_adv(a=self.imgXYw, net_d=self.net_dYw, coeff=1, truth=False)

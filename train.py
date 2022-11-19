@@ -138,8 +138,10 @@ if args.preload:
 if 1:
     from pytorch_lightning.loggers.neptune import NeptuneLogger
     logger = NeptuneLogger(
-        api_key="ANONYMOUS",
-        project="test")
+        api_key="eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsIjoiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXkiOiIyNmQ4NzVkMi00YWZkLTQ4MTctOGE5ZC02N2U4ZGU1YWVkZjYifQ==",
+        project="OaiGanRel")
+        #api_key="ANONYMOUS",
+        #project="test_neptune")
 else:
     logger = pl_loggers.TensorBoardLogger(os.environ.get('LOGS') + args.dataset + '/', name=args.prj)
 
@@ -149,8 +151,9 @@ checkpoints = os.path.join(os.environ.get('LOGS'), args.dataset, args.prj, 'chec
 os.makedirs(checkpoints, exist_ok=True)
 net = GAN(hparams=args, train_loader=train_loader, test_loader=test_loader, checkpoints=checkpoints)
 trainer = pl.Trainer(gpus=-1, strategy='ddp',
-                     max_epochs=args.n_epochs + 1, progress_bar_refresh_rate=20, logger=logger,
-                     enable_checkpointing=False)
+                     max_epochs=args.n_epochs + 1,# progress_bar_refresh_rate=20,
+                     logger=logger,
+                     enable_checkpointing=False, log_every_n_steps=200)
 print(args)
 trainer.fit(net, train_loader, test_loader)  # test loader not used during training
 

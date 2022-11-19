@@ -49,11 +49,10 @@ class GAN(BaseModel):
 
     def generation(self):
         img = self.batch['img']
-        self.filenames = self.batch['filenames']
-        id = self.filenames[0][0].split('/')[-1].split('_')[0]
+        id = self.batch['filenames'][0][0].split('/')[-1].split('_')[0]
         paindiff = np.abs(self.df.loc[self.df['ID'] == int(id), ['V00WOMKPR']].values[0][0]\
                    - self.df.loc[self.df['ID'] == int(id), ['V00WOMKPL']].values[0][0])
-        paindiff = (paindiff / 10)
+        paindiff = 1#(paindiff / 10)
 
         self.oriX = img[0]
         self.oriY = img[1]
@@ -68,7 +67,7 @@ class GAN(BaseModel):
 
         #self.imgYY = combine(self.imgYY, self.oriY, method='mul')
 
-    def backward_g(self, inputs):
+    def backward_g(self):
         # ADV(XY)+ -
         axy, _ = self.add_loss_adv_classify3d(a=self.imgXY, net_d=self.net_d, truth_adv=True, truth_classify=False)
 
@@ -82,13 +81,13 @@ class GAN(BaseModel):
         #loss_gc = cxy + cxx + cyy + cyx
         loss_g = loss_ga + loss_l1 + loss_l1x
 
-        self.log('l1', loss_l1, on_step=False, on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
-        self.log('ga', loss_ga, on_step=False, on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
+        #self.log('l1', loss_l1, on_step=False, on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
+        #self.log('ga', loss_ga, on_step=False, on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
         #self.log('gc', loss_gc, on_step=False, on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
-        return {'sum': loss_g, 'loss_g': loss_g}
+        return {'sum': loss_g, 'l1': loss_l1, 'ga': loss_ga}
 
-    def backward_d(self, inputs):
-        id = self.filenames[0][0].split('/')[-1].split('_')[0]
+    def backward_d(self):
+        id = self.batch['filenames'][0][0].split('/')[-1].split('_')[0]
         side = self.df.loc[self.df['ID'] == int(id), ['SIDE']].values[0][0]
         # ADV(XY)- -
         # aversarial of xy
@@ -104,9 +103,9 @@ class GAN(BaseModel):
         loss_dc = cxy
         loss_d = loss_da + loss_dc * self.hparams.dc0
 
-        self.log('da', loss_da, on_step=False, on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
-        self.log('dc', loss_dc, on_step=False, on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
-        return {'sum': loss_d, 'loss_d': loss_d}
+        #self.log('da', loss_da, on_step=False, on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
+        #self.log('dc', loss_dc, on_step=False, on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
+        return {'sum': loss_d, 'da': loss_da, 'dc': loss_dc}
 
     def add_loss_adv_classify3d(self, a, net_d, truth_adv, truth_classify, log=None):
         adv_logits, classify_logits = net_d(a)

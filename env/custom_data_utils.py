@@ -15,6 +15,9 @@ def customize_data_split(dataset, split=None):
             elif split == 'b':
                 train_index = range(0, 497)
                 test_index = range(497, 710)
+            elif split == 'small':
+                train_index = range(690, 710)
+                test_index = range(0, 20)
 
         if dataset == 'oaiseg':
             if split == 'a':
