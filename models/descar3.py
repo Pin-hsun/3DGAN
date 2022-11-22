@@ -30,7 +30,8 @@ class GAN(BaseModel):
 
         self.df = pd.read_csv('env/subjects_unipain_womac3.csv')
 
-        self.init_networks_optimizer_scheduler()
+        self.net_g, self.net_d = self.set_networks()
+        self.init_optimizer_scheduler()
 
     @staticmethod
     def add_model_specific_args(parent_parser):
@@ -217,4 +218,4 @@ class GAN(BaseModel):
 
 # CUDA_VISIBLE_DEVICES=0,1,2 python train.py --jsn womac3 --prj Gds/descar3/Gdsmc3DB --mc --engine descar3 --netG dsmc --netD descar --direction areg_b --index --gray --load3d --final none
 # CUDA_VISIBLE_DEVICES=0,1,2,3 python train.py --jsn womac3 --prj 3D/descar3/GdsmcDbpatch16Trd800 --mc --engine descar3 --netG dsmc --netD bpatch_16 --direction ap_bp --split moaks --load3d --final none --n_epochs 400 --trd 800
-# CUDA_VISIBLE_DEVICES=0,1,2,3 python train.py --jsn womac3 --prj 3D/descar3/GdsmcDbpatch16Trd800  --models descar3 --netG dsmc --netD bpatch_16 --direction ap_bp --final none -b 1 --split moaks --final none --n_epochs 400 --trd 800
+# CUDA_VISIBLE_DEVICES=0,1,2,3 python train.py --jsn womac3 --prj 3D/descar3/GdsmcDbpatch16Trd800  --models descar3 --netG dsmc --netD bpatch_16 --direction ap_bp --final none -b 1 --split moaks --n_epochs 400 --trd 800

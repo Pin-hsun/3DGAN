@@ -350,7 +350,7 @@ if __name__ == '__main__':
         dataset = MultiData(root=root, path='areg_b_aregseg_bseg', opt=opt, mode='train', filenames=False)
         xm = dataset3d.__getitem__(100)
 
-    if 1:
+    if 0:
         # fly3d
         root = '/media/ExtHDD01/Dataset/paired_images/Fly0B/train/' # change to your data root
         opt.n01 = False
@@ -367,7 +367,7 @@ if __name__ == '__main__':
                                 crop=[0, 1890, 1024+512, 1024+512+32, 0, 1024])
         x = datatif.__getitem__(0)
 
-    if 0:
+    if 1:
         root = os.environ.get('DATASET') + opt.dataset
         opt.cropsize = 256
         opt.n01 = True
@@ -378,5 +378,5 @@ if __name__ == '__main__':
 
         # womac3
         opt.load3d = True
-        dataset3d = MultiData(root=root, path='a_effusion/aeffpain_b_effusion/beffpain', opt=opt, mode='train', filenames=False)
+        dataset3d = MultiData(root=root, path='a_effusion/aeffpain_b_effusion/beffpain', opt=opt, mode='train', filenames=True)
         xm = dataset3d.__getitem__(210)

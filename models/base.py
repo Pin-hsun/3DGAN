@@ -16,7 +16,6 @@ from pytorch_lightning.utilities import rank_zero_only
 import torchmetrics
 
 
-
 class NeptuneHelper():
     def __init__(self):
         self.to_print = []
@@ -124,9 +123,9 @@ class BaseModel(pl.LightningModule):
 
         self.log_helper = NeptuneHelper()
 
-    def init_networks_optimizer_scheduler(self):
+    def init_optimizer_scheduler(self):
         # set networks
-        self.net_g, self.net_d = self.set_networks()
+        # self.net_g, self.net_d = self.set_networks()
 
         # Optimizer and scheduler
         [self.optimizer_d, self.optimizer_g], [] = self.configure_optimizers()
@@ -216,20 +215,6 @@ class BaseModel(pl.LightningModule):
         self.all_label = []
         self.all_out = []
         self.epoch += 1
-
-    #@rank_zero_only
-    def validation_step(self, batch, batch_idx):
-        self.batch_idx = batch_idx
-        self.batch = batch
-        if self.hparams.load3d:  # if working on 3D input, bring the Z dimension to the first and combine with batch
-            self.batch['img'] = self.reshape_3d(self.batch['img'])
-
-        self.generation()
-        id = self.batch['filenames'][0][0].split('/')[-1].split('_')[0]
-        #if id in ['9026695', '9039627']:
-        if self.batch_idx in [5, 6, 7]:
-            self.log_helper.append(self.oriX)
-            self.log_helper.append(self.imgXY)
 
     def validation_epoch_end(self, x):
         self.log_helper.print(logger=self.logger, epoch=self.epoch)

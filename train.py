@@ -17,7 +17,7 @@ def prepare_log(args):
     """
     finalize arguments, creat a folder for logging, save argument in json
     """
-    args.not_tracking_hparams = ['mode', 'port', 'epoch_load', 'legacy', 'threads', 'test_batch_size']
+    args.not_tracking_hparams = []#'mode', 'port', 'epoch_load', 'legacy', 'threads', 'test_batch_size']
     os.makedirs(os.environ.get('LOGS') + args.dataset + '/', exist_ok=True)
     os.makedirs(os.environ.get('LOGS') + args.dataset + '/' + args.prj + '/', exist_ok=True)
     save_json(args, os.environ.get('LOGS') + args.dataset + '/' + args.prj + '/' + '0.json')
@@ -32,6 +32,7 @@ parser.add_argument('--jsn', type=str, default='default', help='name of ini file
 parser.add_argument('--env', type=str, default=None, help='environment_to_use')
 # Project name
 parser.add_argument('--prj', type=str, help='name of the project')
+parser.add_argument('-m', dest='message', type=str, help='message')
 parser.add_argument('--models', dest='models', type=str, help='use which models')
 # Data
 parser.add_argument('--dataset', type=str)
@@ -135,7 +136,7 @@ if args.preload:
 
 
 # Logger
-if 1:
+if 0:
     from pytorch_lightning.loggers.neptune import NeptuneLogger
     logger = NeptuneLogger(
         api_key="eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsIjoiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXkiOiIyNmQ4NzVkMi00YWZkLTQ4MTctOGE5ZC02N2U4ZGU1YWVkZjYifQ==",

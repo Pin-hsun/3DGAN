@@ -128,14 +128,14 @@ class Generator(nn.Module):
             nn.Dropout(p=dropout, inplace=False),
             conv_block(4 * nf, 4 * nf, activation=act),
         )
-        self.up2 = deconv2d_bn_block(4 * nf, 2 * nf, activation=act)
+        self.up2 = deconv2d_bn_block(4 * nf + 1, 2 * nf, activation=act)
         self.conv6 = nn.Sequential(
             conv_block(4 * nf, 2 * nf, activation=act),
             nn.Dropout(p=dropout, inplace=False),
             conv_block(2 * nf, 2 * nf, activation=act),
         )
 
-        self.up1 = deconv2d_bn_block(2 * nf, nf, activation=act)
+        self.up1 = deconv2d_bn_block(2 * nf + 1, nf, activation=act)
 
         final_layer = get_activation(final)
 
@@ -152,6 +152,9 @@ class Generator(nn.Module):
         #    self.conv7_g[-1] = self.conv7_g[-1][:-1]
 
     def forward(self, xori, a=None):
+        """
+        concat in all three layers
+        """
         x = 1 * xori
         # c: (B, C)
         self.c_dim = 0
@@ -166,17 +169,29 @@ class Generator(nn.Module):
         x2 = self.down2(x1)   # Dropout
         x3 = self.down3(x2)   # Dropout
 
-        a = a * torch.ones((x3.shape[0], 1)).type_as(x3)
-        tiled_a = tile_like(a, x3)
+        # injection
+
+        #tiled_a = a * tile_like(torch.ones((x3.shape[0], 1)), x3).type_as(x3)
+        tiled_a = tile_like(a.unsqueeze(1).repeat(1, 23).view(-1, 1), x3).type_as(x3)
         x3 = torch.cat([x3, tiled_a], 1)
 
         xu3 = self.up3(x3)
         cat3 = torch.cat([xu3, x2], 1)
         x5 = self.conv5(cat3)   # Dropout
 
+        # injection
+        #tiled_a = a * tile_like(torch.ones((x5.shape[0], 1)), x5).type_as(x5)
+        tiled_a = tile_like(a.unsqueeze(1).repeat(1, 23).view(-1, 1), x5).type_as(x5)
+        x5 = torch.cat([x5, tiled_a], 1)
+
         xu2 = self.up2(x5)
         cat2 = torch.cat([xu2, x1], 1)
         x6 = self.conv6(cat2)   # Dropout
+
+        # injection
+        #tiled_a = a * tile_like(torch.ones((x6.shape[0], 1)), x6).type_as(x6)
+        tiled_a = tile_like(a.unsqueeze(1).repeat(1, 23).view(-1, 1), x6).type_as(x6)
+        x6 = torch.cat([x6, tiled_a], 1)
 
         xu1 = self.up1(x6)
         x70 = self.conv7_k(xu1)
