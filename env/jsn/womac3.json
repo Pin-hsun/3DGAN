@@ -6,7 +6,7 @@
             "models": "NS",
             "dataset": "womac3",
             "load3d": true,
-            "direction": "areg_b",
+            "direction": "ap_bp",
             "flip": false,
             "resize": 0,
             "cropsize": 256,

@@ -11,31 +11,8 @@ import pytorch_lightning as pl
 from utils.metrics_segmentation import SegmentationCrossEntropyLoss
 from utils.metrics_classification import CrossEntropyLoss, GetAUC
 from utils.data_utils import *
-from neptune.new.types import File
 from pytorch_lightning.utilities import rank_zero_only
-import torchmetrics
-
-
-class NeptuneHelper():
-    def __init__(self):
-        self.to_print = []
-
-    def clear(self):
-        self.to_print = []
-
-    def append(self, x):
-        self.to_print.append(x)
-
-    @rank_zero_only
-    def print(self, logger, epoch, destination="train/misclassified_images"):
-        if len(self.to_print) > 0:  # if there is something to print
-            to_print = [[self.to_print[j][i, 0, :, :].detach().cpu() for i in range(5, 12)] for j in range(len(self.to_print))]
-            to_print = [torch.cat(x, 1) for x in to_print]
-            to_print = torch.cat(to_print, 0)
-            imagesc(to_print, show=False, save='temp/v' + str(epoch).zfill(3) + '.png')
-
-            grid = torchvision.utils.make_grid(to_print)[0,::]
-            logger.experiment[destination].log(File.as_image(grid))
+from models.helper import NeptuneHelper
 
 
 class MyAccuracy():
@@ -59,6 +36,7 @@ class MyAccuracy():
     def compute(self):
         # compute final result
         return self.correct.float() / self.total
+
 
 class Namespace:
     def __init__(self, **kwargs):
@@ -124,9 +102,6 @@ class BaseModel(pl.LightningModule):
         self.log_helper = NeptuneHelper()
 
     def init_optimizer_scheduler(self):
-        # set networks
-        # self.net_g, self.net_d = self.set_networks()
-
         # Optimizer and scheduler
         [self.optimizer_d, self.optimizer_g], [] = self.configure_optimizers()
         self.net_g_scheduler = get_scheduler(self.optimizer_g, self.hparams)
@@ -135,7 +110,7 @@ class BaseModel(pl.LightningModule):
     def configure_optimizers(self):
         netg_parameters = []
         print(self.netd_names.keys())
-        print('optimizer being called')
+        print('configure optimizer being called')
         for g in self.netg_names.keys():
             netg_parameters = netg_parameters + list(getattr(self, g).parameters())
 
@@ -150,35 +125,21 @@ class BaseModel(pl.LightningModule):
         # not using pl scheduler for now....
         return [self.optimizer_d, self.optimizer_g], []
 
-    def add_loss_adv(self, a, net_d, coeff, truth):
+    def add_loss_adv(self, a, net_d, truth):
         disc_logits = net_d(a)[0]
         if truth:
             adv = self.criterionGAN(disc_logits, torch.ones_like(disc_logits))
         else:
             adv = self.criterionGAN(disc_logits, torch.zeros_like(disc_logits))
-        return coeff * adv
+        return adv
 
-    def add_loss_l1(self, a, b, coeff):
+    def add_loss_l1(self, a, b):
         l1 = self.criterionL1(a, b)
-        return coeff * l1
-
-    @staticmethod
-    def reshape_3d(img3d):
-        if len(img3d[0].shape) == 5:
-            for i in range(len(img3d)):
-                (B, C, H, W, Z) = img3d[i].shape
-                img3d[i] = img3d[i].permute(0, 4, 1, 2, 3)
-                img3d[i] = img3d[i].reshape(B * Z, C, H, W)
-        return img3d
+        return l1
 
     def training_step(self, batch, batch_idx, optimizer_idx):
-        self.batch_idx = batch_idx
-        self.batch = batch
-        if self.hparams.load3d:  # if working on 3D input, bring the Z dimension to the first and combine with batch
-            self.batch['img'] = self.reshape_3d(self.batch['img'])
-
         if optimizer_idx == 0:
-            self.generation()
+            self.generation(batch)
             loss_d = self.backward_d()
             for k in list(loss_d.keys()):
                 if k is not 'sum':
@@ -186,7 +147,7 @@ class BaseModel(pl.LightningModule):
             return loss_d['sum']
 
         if optimizer_idx == 1:
-            self.generation()  # why there are two generation?
+            self.generation(batch)  # why there are two generation?
             loss_g = self.backward_g()
             for k in list(loss_g.keys()):
                 if k is not 'sum':
@@ -195,7 +156,6 @@ class BaseModel(pl.LightningModule):
 
     def training_epoch_end(self, outputs):
         self.train_loader.dataset.shuffle_images()
-
         # checkpoint
         if self.epoch % 20 == 0:
             for name in self.netg_names.keys():
@@ -228,7 +188,7 @@ class BaseModel(pl.LightningModule):
             del tqdm_dict['loss']
         return tqdm_dict
 
-    def generation(self):
+    def generation(self, batch):
         pass
 
     def backward_g(self):
