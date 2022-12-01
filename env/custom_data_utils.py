@@ -6,7 +6,7 @@ def customize_data_split(dataset, split=None):
         folder = '/full/'
         if dataset == 'womac3':
             if split == 'moaks':
-                df = pd.read_csv('env/subjects_unipain_womac3.csv')
+                df = pd.read_csv('env/subjects_womac3.csv')
                 train_index = [x for x in range(df.shape[0]) if not df['has_moaks'][x]]
                 test_index = [x for x in range(df.shape[0]) if df['has_moaks'][x]]
             elif split == 'a':
@@ -18,6 +18,11 @@ def customize_data_split(dataset, split=None):
             elif split == 'small':
                 train_index = range(690, 710)
                 test_index = range(0, 20)
+
+        if dataset == 'womac4':
+            if split == 'b':
+                train_index = range(666, 2225)
+                test_index = range(0, 666)
 
         if dataset == 'oaiseg':
             if split == 'a':

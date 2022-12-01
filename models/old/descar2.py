@@ -2,7 +2,6 @@ import torch, copy
 import torch.nn as nn
 import torchvision
 import torch.optim as optim
-from networks.loss import GANLoss
 from math import log10
 import time, os
 import pytorch_lightning as pl
@@ -10,7 +9,7 @@ from utils.metrics_segmentation import SegmentationCrossEntropyLoss
 from utils.metrics_classification import CrossEntropyLoss, GetAUC
 from utils.data_utils import *
 from models.base import BaseModel, combine
-
+import pandas as pd
 
 class GAN(BaseModel):
     """
@@ -18,7 +17,8 @@ class GAN(BaseModel):
     """
     def __init__(self, hparams, train_loader, test_loader, checkpoints):
         BaseModel.__init__(self, hparams, train_loader, test_loader, checkpoints)
-        self.net_dY = copy.deepcopy(self.net_d)
+
+        self.init_networks_optimizer_scheduler()
 
     @staticmethod
     def add_model_specific_args(parent_parser):
@@ -30,6 +30,7 @@ class GAN(BaseModel):
         self.oriX = img[0]
 
         self.imgX0, self.imgX1 = net_g(self.oriX, a=None)
+        self.imgX0 = nn.Sigmoid()(self.imgX0)  # mask
         return self.imgX0
 
     def generation(self):
@@ -37,45 +38,52 @@ class GAN(BaseModel):
         self.oriX = img[0]
         self.oriY = img[1]
 
-        self.imgX0, self.imgX1 = self.net_g(self.oriX, a=None)
+        self.imgXY, self.imgXX = self.net_g(self.oriX, a=None)
 
         if self.hparams.cmb is not None:
-            self.imgX0 = combine(self.imgX0, self.oriX, method=self.hparams.cmb)
-            self.imgX1 = combine(self.imgX1, self.oriX, method=self.hparams.cmb)
+            self.imgXY = combine(self.imgXY, self.oriX, method=self.hparams.cmb)
+            self.imgXX = combine(self.imgXX, self.oriX, method=self.hparams.cmb)
 
     def backward_g(self, inputs):
-        # ADV(X0)+
-        loss_g = 0
-        loss_g += self.add_loss_adv(a=self.imgX0, net_d=self.net_d, coeff=1, truth=True, stacked=False)
+        # ADV(XY)+
+        axy = self.add_loss_adv(a=self.imgXY, net_d=self.net_d, coeff=1, truth=True)
 
-        # L1(X0, Y)
-        loss_g += self.add_loss_l1(a=self.imgX0, b=self.oriY, coeff=self.hparams.lamb)
+        # L1(XY, Y)
+        loss_l1a = self.add_loss_l1(a=self.imgXY, b=self.oriY, coeff=1)
 
-        # L1(X1, X)
-        loss_g += self.add_loss_l1(a=self.imgX1, b=self.oriX, coeff=self.hparams.lb1)
+        # L1(XX, X)
+        loss_l1b = self.add_loss_l1(a=self.imgXX, b=self.oriX, coeff=1)
 
         # ADV(X1)+
-        #loss_g = self.add_loss_adv(a=self.imgX1, net_d=self.net_dY, loss=loss_g, coeff=1, truth=True, stacked=False)
+        #loss_g = self.add_loss_adv(a=self.imgX1, net_d=self.net_dY, loss=loss_g, coeff=1, truth=True)
 
         # L1(X0, X1)
         #loss_g = self.add_loss_L1(a=self.imgX0, b=self.imgX1, loss=loss_g, coeff=self.hparams.lamb * 0.1)
 
+        self.log('gaxy', axy, on_step=False, on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
+        self.log('l1xy_y', loss_l1a, on_step=False, on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
+        self.log('l1xx_y', loss_l1b, on_step=False, on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
+
+        loss_g = axy + self.hparams.lamb * loss_l1a + self.hparams.lamb * loss_l1b
         return {'sum': loss_g, 'loss_g': loss_g}
 
     def backward_d(self, inputs):
-        loss_d = 0
         # ADV(X0)-
-        loss_d += self.add_loss_adv(a=self.imgX0, net_d=self.net_d, coeff=0.5, truth=False, stacked=False)
+        axy = self.add_loss_adv(a=self.imgXY, net_d=self.net_d, coeff=1, truth=False)
 
         # ADV(Y)+
-        loss_d += self.add_loss_adv(a=self.oriY, net_d=self.net_d, coeff=0.5, truth=True)
+        ay = self.add_loss_adv(a=self.oriY, net_d=self.net_d, coeff=1, truth=True)
 
         # ADV(X1)-
-        #loss_d = self.add_loss_adv(a=self.imgX1, net_d=self.net_dY, loss=loss_d, coeff=0.5, truth=False, stacked=False)
+        #loss_d = self.add_loss_adv(a=self.imgX1, net_d=self.net_dY, loss=loss_d, coeff=0.5, truth=False)
 
         # ADV(X)+
         #loss_d = self.add_loss_adv(a=self.oriX, net_d=self.net_dY, loss=loss_d, coeff=0.5, truth=True)
 
+        self.log('daxy', axy, on_step=False, on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
+        self.log('day', ay, on_step=False, on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
+        loss_d = 0.5 * axy + 0.5 * ay
         return {'sum': loss_d, 'loss_d': loss_d}
 
-# CUDA_VISIBLE_DEVICES=1 python train.py --jsn womac3 --prj mcfix/descar2/Gdescarsmc_index2_check --engine descar2 --netG descarsmc --mc --direction areg_b --index --gray
+# CUDA_VISIBLE_DEVICES=0,1,2 python train.py --jsn womac3 --prj GDs/descar2/GdsmcCheck --engine descar2check --netG descarsmc --mc --direction areg_b --index --gray
+#python testoai.py --jsn womac3 --direction a_b --prj GDs/descar2/GdsmcCheck --cropsize 384 --n01 --cmb mul --gray --nepochs 40 201 40 --nalpha 0 100 100 --engine descar2check

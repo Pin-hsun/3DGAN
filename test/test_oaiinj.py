@@ -268,5 +268,5 @@ for epoch in range(*args.nepochs):
 
 
 # USAGE
-# CUDA_VISIBLE_DEVICES=1 python -m test.test_oaivar.py --jsn womac3 --direction a_b --prj 3D/descar3/GdsmcDbpatch16/ --engine descar3 --cropsize 384 --n01 --cmb mul --gray --nepochs 400 401 40 --nalpha 0 20 20
+# CUDA_VISIBLE_DEVICES=1 python -m test.test_oaiinj.py --jsn womac3 --direction a_b --prj 3D/descar3/GdsmcDbpatch16/ --engine descar3 --cropsize 384 --n01 --cmb not --gray --nepochs 400 401 40 --nalpha 0 20 20
 

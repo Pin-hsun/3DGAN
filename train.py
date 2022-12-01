@@ -154,10 +154,11 @@ net = GAN(hparams=args, train_loader=train_loader, test_loader=test_loader, chec
 trainer = pl.Trainer(gpus=-1, strategy='ddp',
                      max_epochs=args.n_epochs + 1,# progress_bar_refresh_rate=20,
                      logger=logger,
-                     enable_checkpointing=False, log_every_n_steps=200)
+                     enable_checkpointing=False, log_every_n_steps=200,
+                     check_val_every_n_epoch=10)
 print(args)
 trainer.fit(net, train_loader, test_loader)  # test loader not used during training
 
 
-# Examples of  Usage
+# Examples of  Usage XXXYYYZZ
 # CUDA_VISIBLE_DEVICES=0,1,2,3 python train.py --jsn womac3 --prj 3D/descar3/GdsmcDbpatch16  --models descar3 --netG dsmc --netD bpatch_16 --direction ap_bp --final none -b 1 --split moaks --final none --n_epochs 400

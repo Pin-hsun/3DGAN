@@ -14,29 +14,17 @@ from utils.data_utils import *
 from pytorch_lightning.utilities import rank_zero_only
 from models.helper import NeptuneHelper
 
+"""
+change log
 
-class MyAccuracy():
-    def __init__(self, dist_sync_on_step=False):
-        # call `self.add_state`for every internal state that is needed for the metrics computations
-        # dist_reduce_fx indicates the function that should be used to reduce
-        # state from multiple processes
-        super().__init__(dist_sync_on_step=dist_sync_on_step)
-
-        self.add_state("correct", default=torch.tensor(0), dist_reduce_fx="sum")
-        self.add_state("total", default=torch.tensor(0), dist_reduce_fx="sum")
-
-    def update(self, preds: torch.Tensor, target: torch.Tensor):
-        # update metric states
-        preds, target = self._input_format(preds, target)
-        assert preds.shape == target.shape
-
-        self.correct += torch.sum(preds == target)
-        self.total += target.numel()
-
-    def compute(self):
-        # compute final result
-        return self.correct.float() / self.total
-
+base: generation > generation(batch), self.batch > batch
+reshape3d: base > models.helper
+labels: models > models.helper_oai
+remove coeff from adv and L1 loss
+remove add_loss_adv_classify3d
+swap_by_labels > oai_helper
+auc > logger_helper
+"""
 
 class Namespace:
     def __init__(self, **kwargs):
@@ -95,9 +83,6 @@ class BaseModel(pl.LightningModule):
         # Final
         self.hparams.update(vars(self.hparams))   # updated hparams to be logged in tensorboard
         self.train_loader.dataset.shuffle_images()  # !!! STUPID shuffle again just to make sure
-
-        self.all_label = []
-        self.all_out = []
 
         self.log_helper = NeptuneHelper()
 
@@ -172,8 +157,6 @@ class BaseModel(pl.LightningModule):
         self.net_g_scheduler.step()
         self.net_d_scheduler.step()
 
-        self.all_label = []
-        self.all_out = []
         self.epoch += 1
 
     def validation_epoch_end(self, x):

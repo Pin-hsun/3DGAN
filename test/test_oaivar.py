@@ -79,7 +79,7 @@ class Pix2PixModel:
         engine = args.engine
         test_method = getattr(__import__('models.' + engine), engine).GAN.test_method
 
-        output = test_method(self, self.net_g, img)
+        output = test_method(self.net_g, img)
         combined = combine(output, in_img, args.cmb)
 
         in_img = in_img.detach().cpu()[0, ::]
@@ -321,7 +321,7 @@ for epoch in range(*args.nepochs):
                                                      str(epoch) + '_' + str(alpha) + '_' + str(ii).zfill(4) + 'm'))
 
         if args.all:
-            for item in ['diffmean']:#['cartilagesegvar', 'xyseg', 'xseg']:
+            for item in ['combinedmean']:#['cartilagesegvar', 'xyseg', 'xseg']:
                 root = '/media/ExtHDD01/Dataset/paired_images/womac3/full/new'
                 destination = os.path.join(root, item)
                 os.makedirs(destination, exist_ok=True)
@@ -343,5 +343,5 @@ for epoch in range(*args.nepochs):
 
 
 # USAGE
-# CUDA_VISIBLE_DEVICES=1 python -m test.test_oaivar.py --jsn womac3 --direction a_b --prj 3D/descar3/GdsmcDbpatch16/ --engine descar3 --cropsize 384 --n01 --cmb mul --gray --nepochs 400 401 40 --nalpha 0 20 20
+# CUDA_VISIBLE_DEVICES=0 python -m test.test_oaivar.py --jsn womac3 --direction a_b --prj 3D/descar3/GdsmcDbpatch16/ --engine descar3 --cropsize 384 --n01 --cmb mul --gray --nepochs 400 401 40 --nalpha 0 1 1
 

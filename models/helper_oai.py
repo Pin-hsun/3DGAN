@@ -1,15 +1,27 @@
 import torch
 import torch.nn as nn
+import pandas as pd
 
 
-def label_unilateral_knee_pain(df, filenames):
-    ids = [x.split('/')[-1].split('_')[0] for x in filenames[0]]
-    paindiff = [(df.loc[df['ID'] == int(i), ['V00WOMKPR']].values[0][0] \
-                 - df.loc[df['ID'] == int(i), ['V00WOMKPL']].values[0][0]) for i in ids] # Right - Left
-    paindiff = torch.FloatTensor([x / 10 for x in paindiff])
+class OaiSubjects():
+    def __init__(self, dataset):
+        self.df = pd.read_csv('env/' + 'subjects_' + dataset + '.csv')
+        self.df['ID'] = [str(x) for x in self.df['ID']]
 
-    labels = {'paindiff': paindiff,  'painbinary': (torch.sign(paindiff) + 1) / 2}
-    return labels
+    def labels_unilateral(self, filenames):
+        df = self.df
+        #ids = [x.split('/')[-1].split('_')[0] for x in filenames[0]]
+        ids = [x.split('/')[-1].replace('_' + x.split('/')[-1].split('_')[-1], '') for x in filenames[0]]
+
+        paindiff = [(df.loc[df['ID'] == i, ['V$$WOMKPR']].values[0][0] \
+                     - df.loc[df['ID'] == i, ['V$$WOMKPL']].values[0][0]) for i in ids] # Right - Left
+        paindiff = torch.FloatTensor([x / 10 for x in paindiff])
+
+        labels = {'paindiff': paindiff,  'painbinary': (torch.sign(paindiff) + 1) / 2}
+        return labels
+
+
+oai = OaiSubjects('womac3')
 
 
 def classify_easy_3d(classify_logits, truth_classify, classifier, criterion):

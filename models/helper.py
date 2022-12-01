@@ -7,13 +7,21 @@ from pytorch_lightning.utilities import rank_zero_only
 
 class NeptuneHelper():
     def __init__(self):
-        self.to_print = []
 
-    def clear(self):
-        self.to_print = []
+        self.log = dict()
 
-    def append(self, x):
-        self.to_print.append(x)
+        self.log['to_print'] = []
+        self.log['label'] = []
+        self.log['out'] = []
+
+    def get(self, key):
+        return self.log[key]
+
+    def clear(self, key):
+        self.log[key] = []
+
+    def append(self, key, x):
+        self.log[key].append(x)
 
     @rank_zero_only
     def print(self, logger, epoch, destination="train/misclassified_images"):
@@ -25,6 +33,29 @@ class NeptuneHelper():
 
             grid = torchvision.utils.make_grid(to_print)[0,::]
             logger.experiment[destination].log(File.as_image(grid))
+
+
+class MyAccuracy():
+    def __init__(self, dist_sync_on_step=False):
+        # call `self.add_state`for every internal state that is needed for the metrics computations
+        # dist_reduce_fx indicates the function that should be used to reduce
+        # state from multiple processes
+        super().__init__(dist_sync_on_step=dist_sync_on_step)
+
+        self.add_state("correct", default=torch.tensor(0), dist_reduce_fx="sum")
+        self.add_state("total", default=torch.tensor(0), dist_reduce_fx="sum")
+
+    def update(self, preds: torch.Tensor, target: torch.Tensor):
+        # update metric states
+        preds, target = self._input_format(preds, target)
+        assert preds.shape == target.shape
+
+        self.correct += torch.sum(preds == target)
+        self.total += target.numel()
+
+    def compute(self):
+        # compute final result
+        return self.correct.float() / self.total
 
 
 def reshape_3d(img3d):

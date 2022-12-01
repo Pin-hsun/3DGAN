@@ -124,13 +124,13 @@ class Generator(nn.Module):
         self.up3 = deconv2d_bn_block(8 * nf + 1, 4 * nf, activation=act)
 
         self.conv5 = nn.Sequential(
-            conv_block(8 * nf, 4 * nf, activation=act),  # 8
+            conv_block(4 * nf, 4 * nf, activation=act),  # 8
             nn.Dropout(p=dropout, inplace=False),
             conv_block(4 * nf, 4 * nf, activation=act),
         )
         self.up2 = deconv2d_bn_block(4 * nf + 1, 2 * nf, activation=act)
         self.conv6 = nn.Sequential(
-            conv_block(4 * nf, 2 * nf, activation=act),
+            conv_block(2 * nf, 2 * nf, activation=act),
             nn.Dropout(p=dropout, inplace=False),
             conv_block(2 * nf, 2 * nf, activation=act),
         )
@@ -178,8 +178,8 @@ class Generator(nn.Module):
         x3 = torch.cat([x3, tiled_a], 1)
 
         xu3 = self.up3(x3)
-        cat3 = torch.cat([xu3, x2], 1)
-        x5 = self.conv5(cat3)   # Dropout
+        #cat3 = torch.cat([xu3, x2], 1)
+        x5 = self.conv5(xu3)   # Dropout
 
         # injection
         #tiled_a = a * tile_like(torch.ones((x5.shape[0], 1)), x5).type_as(x5)
@@ -187,8 +187,8 @@ class Generator(nn.Module):
         x5 = torch.cat([x5, tiled_a], 1)
 
         xu2 = self.up2(x5)
-        cat2 = torch.cat([xu2, x1], 1)
-        x6 = self.conv6(cat2)   # Dropout
+        #cat2 = torch.cat([xu2, x1], 1)
+        x6 = self.conv6(xu2)   # Dropout
 
         # injection
         #tiled_a = a * tile_like(torch.ones((x6.shape[0], 1)), x6).type_as(x6)
