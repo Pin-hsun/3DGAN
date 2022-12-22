@@ -56,10 +56,13 @@ class SegmentationDiceCoefficient(nn.Module):
             dice_div[c] += ((masks_pred == c).sum().item() + (true_masks.view(-1) == c).sum().item())
             dice[c] = 2 * dice_tp[c] / dice_div[c]
 
-        return dice[1:]  # omit the background channel
+        return dice[:]
 
 
 class SegmentationDiceCoefficientDual(nn.Module):
+    """
+    what is this for ???
+    """
     def __init__(self):
         super(SegmentationDiceCoefficientDual, self).__init__()
         self.SegmentationDiceCoefficient = SegmentationDiceCoefficient()

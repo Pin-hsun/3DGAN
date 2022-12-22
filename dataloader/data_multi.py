@@ -173,7 +173,8 @@ class PairedData(data.Dataset):
         augmented = self.transforms(**inputs)
         augmented['0000'] = augmented.pop('image')  # 'change image back to 0'
         for k in sorted(list(augmented.keys())):
-            if self.opt.n01:
+
+            if not self.opt.nm == '11':
                 outputs = outputs + [augmented[k], ]
             else:
                 if augmented[k].shape[0] == 3:
@@ -189,8 +190,9 @@ class PairedData(data.Dataset):
         if self.opt.trd > 0:
             x[x >= self.opt.trd] = self.opt.trd
 
-        if x.max() > 0:  # scale to 0-1
-            x = x / x.max()
+        if not self.opt.nm == '00':
+            if x.max() > 0:  # scale to 0-1
+                x = x / x.max()
 
         if len(x.shape) == 2:  # if grayscale
             x = np.expand_dims(x, 2)

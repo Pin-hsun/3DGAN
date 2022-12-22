@@ -5,6 +5,7 @@ from utils.metrics_segmentation import SegmentationCrossEntropyLoss, Segmentatio
 import torch.nn as nn
 from networks.networks import get_scheduler
 import numpy as np
+from models.helper import reshape_3d
 
 
 class GAN(BaseModel):
@@ -21,6 +22,9 @@ class GAN(BaseModel):
 
         self.segloss = SegmentationCrossEntropyLoss()
         self.segdice = SegmentationDiceCoefficient()
+
+        self.all_label = []
+        self.all_out = []
 
     @staticmethod
     def add_model_specific_args(parent_parser):
@@ -46,6 +50,9 @@ class GAN(BaseModel):
     def generation(self):
         self.img = self.batch['img']
         self.ori = self.img[1]
+
+        self.ori = self.ori / self.ori.max()
+
         self.mask = self.img[0].type(torch.LongTensor).to(self.ori.device)
         self.oriseg = self.segnet(self.ori)[0]
 
@@ -61,6 +68,7 @@ class GAN(BaseModel):
         return seg_loss
 
     def validation_step(self, batch, batch_idx):
+        #self.segnet.train()
         self.batch_idx = batch_idx
         self.batch = batch
         if self.hparams.load3d:  # if working on 3D input, bring the Z dimension to the first and combine with batch
@@ -68,7 +76,7 @@ class GAN(BaseModel):
 
         self.generation()
         seg_loss, seg_prob = self.segloss(self.oriseg, self.mask)
-        self.log('seglosstv', seg_loss, on_step=False, on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
+        self.log('seglossv', seg_loss, on_step=False, on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
 
         # metrics
         self.all_label.append(self.mask.cpu())
@@ -93,21 +101,35 @@ class GAN(BaseModel):
         self.all_out = []
 
     def validation_epoch_end(self, x):
-        all_out = torch.cat(self.all_out, 0)
-        all_label = torch.cat(self.all_label, 0)
-        metrics = self.segdice(all_label, all_out)
+        seg = torch.cat(self.all_out, 0)
+        mask = torch.cat(self.all_label, 0)
 
-        print(metrics)
+        del self.all_out
+        del self.all_label
 
-        auc = torch.from_numpy(np.array(metrics)).cuda()
-        for i in range(len(auc)):
-            self.log('auc' + str(i), auc[i], on_step=False, on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
+        #print(all_out.shape)
+        #print(all_label.shape)
+        #metrics = self.segdice(all_label, all_out)
+        #print(metrics)
+        #auc = torch.from_numpy(np.array(metrics)).cuda()
+        #print(self.all_out.shape)
+        seg = torch.argmax(seg, 1).view(-1)
+        mask = mask.view(-1)
+        dice = []
+        for i in range(7):
+            tp = ((mask == i) & (seg == i)).sum().item()
+            uni = (mask == i).sum().item() + (seg == i).sum().item()
+            dice.append(2 * tp / uni)
+        print(dice)
+
+        #for i in range(len(auc)):
+        #    self.log('auc' + str(i), auc[i], on_step=False, on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
         self.all_label = []
         self.all_out = []
 
-        return metrics
+        return 0#metrics
 
 
 
 
-#CUDA_VISIBLE_DEVICES=0 python train.py --jsn womac3 --prj compare/pix2pix/Gunet128 --models pix2pix --netG unet_128 --direction ap_bp --final sigmoid -b 1 --split moaks --cmb not
+#CUDA_VISIBLE_DEVICES=0 python train.py --jsn seg --prj segmentation --models segmentation --split a

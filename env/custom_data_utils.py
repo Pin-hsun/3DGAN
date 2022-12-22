@@ -26,7 +26,7 @@ def customize_data_split(dataset, split=None):
 
         if dataset == 'oaiseg':
             if split == 'a':
-                train_index = range(0, 7769)
+                train_index = range(0, 7769) # 7769
                 test_index = range(7769, 9924)
                 #train_index = range(0, 2282)
                 #test_index = range(2282, 9924)

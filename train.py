@@ -40,13 +40,11 @@ parser.add_argument('--preload', action='store_true')
 parser.add_argument('--split', type=str, help='split of data')
 parser.add_argument('--load3d', action='store_true', dest='load3d', default=False, help='do 3D')
 
-parser.add_argument('--direction', type=str, help='paired: a_b, unpaired a%b ex:(a_b%c_d)')
 parser.add_argument('--flip', action='store_true', dest='flip', help='image flip left right')
 parser.add_argument('--resize', type=int, help='size for resizing before cropping, 0 for no resizing')
 parser.add_argument('--cropsize', type=int, help='size for cropping, 0 for no crop')
-parser.add_argument('--n01', dest='n01', action='store_true', help='normalize the image to 0~1')
-parser.add_argument('--n11', dest='n01', action='store_false', help='otherwise normalize the image to -1~1')
-parser.set_defaults(n01=False)
+parser.add_argument('--direction', type=str, help='paired: a_b, unpaired a%b ex:(a_b%c_d)')
+parser.add_argument('--nm', type=str, help='paired: a_b, unpaired a%b ex:(a_b%c_d)')
 parser.add_argument('--gray', action='store_true', dest='gray', default=False, help='dont copy img to 3 channel')
 parser.add_argument('--spd', action='store_true', dest='spd', default=False, help='USE SPADE?')
 # Model
@@ -155,7 +153,7 @@ trainer = pl.Trainer(gpus=-1, strategy='ddp',
                      max_epochs=args.n_epochs + 1,# progress_bar_refresh_rate=20,
                      logger=logger,
                      enable_checkpointing=False, log_every_n_steps=200,
-                     check_val_every_n_epoch=10)
+                     check_val_every_n_epoch=1)
 print(args)
 trainer.fit(net, train_loader, test_loader)  # test loader not used during training
 

@@ -44,13 +44,10 @@ class GAN(BaseModel):
         oriX = img[0]
 
         imgXX, _ = net_g(oriX, a=torch.FloatTensor([0]))
-        imgXX = nn.Sigmoid()(imgXX)  # mask
+        imgXX = nn.Tanh()(imgXX)  # mask
 
         imgXY, _ = net_g(oriX, a=torch.FloatTensor([a]))
-        imgXY = nn.Sigmoid()(imgXY)  # mask
-
-        imgXX = combine(imgXX, oriX, method='mul')
-        imgXY = combine(imgXY, imgXX, method='mul')
+        imgXY = nn.Tanh()(imgXY)  # mask
 
         return imgXY
 
@@ -64,24 +61,20 @@ class GAN(BaseModel):
         self.oriY = batch['img'][1]
 
         self.imgXY, _ = self.net_g(self.oriX, a=torch.abs(self.labels['paindiff']))
-        self.imgXY = nn.Sigmoid()(self.imgXY)  # mask
-        self.imgXY = combine(self.imgXY, self.oriX, method='mul')
+        self.imgXY = nn.Tanh()(self.imgXY)  # mask
+        #self.imgXY = combine(self.imgXY, self.oriX, method='mul')
 
         self.imgXX, _ = self.net_g(self.oriX, a=0 * torch.abs(self.labels['paindiff']))
-        self.imgXX = nn.Sigmoid()(self.imgXX)  # mask
-        self.imgXX = combine(self.imgXX, self.oriX, method='mul')
+        self.imgXX = nn.Tanh()(self.imgXX)  # mask
+        #self.imgXX = combine(self.imgXX, self.oriX, method='mul')
         #self.imgYY = combine(self.imgYY, self.oriY, method='mul')
-
-        self.imgYX, _ = self.net_g(self.oriY, a=-1 * torch.abs(self.labels['paindiff']))
-        self.imgYX = nn.Sigmoid()(self.imgYX)  # mask
-        self.imgYX = combine(self.imgYX, self.oriY, method='mul')
 
     def backward_g(self):
         # ADV(XY)+
         axy = self.add_loss_adv(a=self.imgXY, net_d=self.net_d, truth=True)
 
-        # ADV(YX)+
-        ayx = self.add_loss_adv(a=self.imgYX, net_d=self.net_d, truth=True)
+        # ADV(XY)+
+        #axx, _ = self.add_loss_adv_classify3d(a=self.imgXX, net_d=self.net_dX, truth_adv=True, truth_classify=False)
 
         # L1(XY, Y)
         loss_l1 = self.add_loss_l1(a=self.imgXY, b=self.oriY)
@@ -89,20 +82,14 @@ class GAN(BaseModel):
         # L1(XX, X)
         loss_l1x = self.add_loss_l1(a=self.imgXX, b=self.oriX)
 
-        # L1(YX, X)
-        loss_l1yx = self.add_loss_l1(a=self.imgYX, b=self.oriX)
-
-        loss_ga = axy * 0.5 + ayx * 0.5
-        loss_g = loss_ga + loss_l1 * self.hparams.lamb + loss_l1x * self.hparams.lbx + loss_l1yx * self.hparams.lamb
+        loss_ga = axy# * 0.5 + axx * 0.5
+        loss_g = loss_ga + loss_l1 * self.hparams.lamb + loss_l1x * self.hparams.lbx
 
         return {'sum': loss_g, 'l1': loss_l1, 'ga': loss_ga}
 
     def backward_d(self):
         # ADV(XY)-
         axy = self.add_loss_adv(a=self.imgXY, net_d=self.net_d, truth=False)
-
-        # ADV(XY)-
-        ayx = self.add_loss_adv(a=self.imgYX, net_d=self.net_d, truth=False)
 
         # ADV(XX)-
         #axx, _ = self.add_loss_adv_classify3d(a=self.imgXX, net_d=self.net_dX, truth_adv=False, truth_classify=False)
@@ -112,7 +99,7 @@ class GAN(BaseModel):
                                                              classifier=self.classifier,
                                                              truth_adv=True, truth_classify=self.labels['painbinary'])
         # adversarial of xy (-) and y (+)
-        loss_da = axy * 0.25 + ay * 0.25 + ayx * 0.25 + ax * 0.25
+        loss_da = axy * 0.5 + ay * 0.5#axy * 0.25 + axx * 0.25 + ax * 0.25 + ay * 0.25
         # classify x (+) vs y (-)
         loss_dc = cxy
         loss_d = loss_da + loss_dc * self.hparams.dc0
