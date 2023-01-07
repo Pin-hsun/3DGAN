@@ -38,7 +38,7 @@ else:
 
 # Data
 from env.custom_data_utils import customize_data_split
-folder, train_index, test_index = customize_data_split(dataset=args.dataset, split=args.split)
+folder, train_index, test_index = customize_data_split(args=args)
 test_set = Dataset(root=os.environ.get('DATASET') + args.dataset + folder,
                     path=args.direction,
                     opt=args, mode='train', index=test_index, filenames=True)

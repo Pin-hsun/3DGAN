@@ -72,7 +72,7 @@ def get_transforms(crop_size, resize, additional_targets, need=('train', 'test')
     if 'test' in need:
         transformations['test'] = A.Compose([
             A.Resize(resize, resize),
-            #A.CenterCrop(height=crop_size, width=crop_size, p=1.),
+            A.CenterCrop(height=crop_size, width=crop_size, p=1.),
             ToTensorV2(p=1.0),
         ], p=1.0, additional_targets=additional_targets)
     return transformations
@@ -196,6 +196,7 @@ class PairedData(data.Dataset):
 
         if len(x.shape) == 2:  # if grayscale
             x = np.expand_dims(x, 2)
+
         if not self.opt.gray:
             if x.shape[2] == 1:
                 x = np.concatenate([x]*3, 2)

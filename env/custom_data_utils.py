@@ -1,7 +1,9 @@
 import pandas as pd
 
 
-def customize_data_split(dataset, split=None):
+def customize_data_split(args):
+    dataset = args.dataset
+    split = args.split
     if split is not None:
         folder = '/full/'
         if dataset == 'womac3':
@@ -26,10 +28,17 @@ def customize_data_split(dataset, split=None):
 
         if dataset == 'oaiseg':
             if split == 'a':
-                train_index = range(0, 7769) # 7769
-                test_index = range(7769, 9924)
-                #train_index = range(0, 2282)
-                #test_index = range(2282, 9924)
+                if args.load3d:
+                    train_index = range(0, 70)
+                    test_index = range(70, 88)
+                else:
+                    train_index = range(2155, 9924) # 7769
+                    test_index = range(0, 2155)
+
+        if dataset == 't2d':
+            if split == 'a':
+                train_index = range(0, 14000)
+                test_index = range(14000, 16317)
 
     else:
         folder = '/train/'

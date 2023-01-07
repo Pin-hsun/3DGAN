@@ -141,6 +141,7 @@ class BaseModel(pl.LightningModule):
 
     def training_epoch_end(self, outputs):
         self.train_loader.dataset.shuffle_images()
+
         # checkpoint
         if self.epoch % 20 == 0:
             for name in self.netg_names.keys():
@@ -217,6 +218,12 @@ class BaseModel(pl.LightningModule):
 
         elif self.hparams.netG == 'genre':
             from networks.genre.generator.Unet_base import SPADEUNet2s
+            opt = Namespace(input_size=128, parsing_nc=1, norm_G='spectralspadebatch3x3', spade_mode='res2',
+                            use_en_feature=False)
+            net_g = SPADEUNet2s(opt=opt, in_channels=1, out_channels=1)
+
+        elif self.hparams.netG == 'unetclean':
+            from networks.unet import UNet_clean
             opt = Namespace(input_size=128, parsing_nc=1, norm_G='spectralspadebatch3x3', spade_mode='res2',
                             use_en_feature=False)
             net_g = SPADEUNet2s(opt=opt, in_channels=1, out_channels=1)

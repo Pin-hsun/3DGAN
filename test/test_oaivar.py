@@ -182,9 +182,7 @@ parser.add_argument('--cropsize', type=int)
 parser.add_argument('--t2d', action='store_true', dest='t2d', default=False)
 parser.add_argument('--cmb', type=str, default=None, help='way to combine output to the input')
 parser.add_argument('--trd', type=float, dest='trd', help='threshold of images')
-parser.add_argument('--n01', dest='n01', action='store_true')
-parser.add_argument('--n11', dest='n01', action='store_false')
-parser.set_defaults(n01=False)
+parser.add_argument('--nm', dest='nm')
 parser.add_argument('--eval', action='store_true', dest='eval')
 parser.add_argument('--nepochs', nargs='+', help='which checkpoints to be interfered with', type=int)
 parser.add_argument('--nalpha', nargs='+', help='range of additional input parameter for generator', type=int)
@@ -220,7 +218,7 @@ for epoch in range(*args.nepochs):
     else:
         iirange = range(1)
 
-    for ii in iirange:
+    for ii in iirange[:]:
         if args.all:
             args.irange = [ii]
 
@@ -321,16 +319,16 @@ for epoch in range(*args.nepochs):
                                                      str(epoch) + '_' + str(alpha) + '_' + str(ii).zfill(4) + 'm'))
 
         if args.all:
-            for item in ['combinedmean']:#['cartilagesegvar', 'xyseg', 'xseg']:
-                root = '/media/ExtHDD01/Dataset/paired_images/womac3/full/new'
-                destination = os.path.join(root, item)
+            for item in ['diffmean', 'combinedmean']:#['cartilagesegvar', 'xyseg', 'xseg']:
+                root = '/media/ExtHDD01/Dataset/paired_images/womac4/full/'
+                destination = os.path.join(root, 'b' + item)
                 os.makedirs(destination, exist_ok=True)
                 x = eval(item)
                 tiff.imwrite(os.path.join(destination, names[0][0].split('/')[-1]),
                              x[0][0, ::].numpy().astype(np.float32))
         else:
             dall = [x + y for x, y in zip(diffseg0, diffseg1)]
-            to_show = [imgX, combinedmean, diffseg0, diffseg1]
+            to_show = [imgX, combined, diffseg0, diffseg1]
             #to_show = [imgX, combined, [to_rgb(x) for x in diffseg0], [to_rgb(x) for x in diffseg1]]
             to_print(to_show, save_name=os.path.join("outputs/results", args.dataset, args.prj,
                                                      str(epoch) + '_' + str(alpha) + '_' + str(ii).zfill(4) + 'm'))
@@ -343,5 +341,5 @@ for epoch in range(*args.nepochs):
 
 
 # USAGE
-# CUDA_VISIBLE_DEVICES=0 python -m test.test_oaivar.py --jsn womac3 --direction a_b --prj 3D/descar3/GdsmcDbpatch16/ --engine descar3 --cropsize 384 --n01 --cmb mul --gray --nepochs 400 401 40 --nalpha 0 1 1
+# CUDA_VISIBLE_DEVICES=0 python -m test.test_oaivar.py --jsn womac3 --direction a_b --prj 3D/test4fix/ --engine descar4fix --cropsize 384 --cmb not --gray --nepochs 0 201 40 --nalpha 0 1 1 --dataset womac4 --testset womac3/full/
 

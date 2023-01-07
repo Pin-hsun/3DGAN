@@ -11,18 +11,22 @@ class SegmentationCrossEntropyLoss(nn.Module):
         """ length of the components of loss to display """
         return 1
 
-    def forward(self, masks_probs, true_masks):
-        #masks_probs = out.view(out.shape[0] * out.shape[1], out.shape[2], out.shape[3],
+    def forward(self, probs, true_masks):
+        #probs = out.view(out.shape[0] * out.shape[1], out.shape[2], out.shape[3],`
         #                       out.shape[4])  # (B * T, C, H, W)
-        masks_probs = masks_probs.permute(0, 2, 3, 1)  # (B, H, W, C)
-        masks_probs = masks_probs.reshape(masks_probs.shape[0] * masks_probs.shape[1] * masks_probs.shape[2],
-                                          masks_probs.shape[3])  # (B * H * W, C)
-        true_masks = true_masks.view(-1)  # (B * T * H * W)
-        # masks_probs = nn.Softmax()(masks_probs)
+        if len(probs.shape) == 4:
+            probs = probs.permute(0, 2, 3, 1)  # (B, H, W, C)
+            probs = probs.reshape(probs.shape[0] * probs.shape[1] * probs.shape[2], probs.shape[3])  # (B * H * W, C)
+        elif len(probs.shape) == 5:
+            probs = probs.permute(0, 2, 3, 4, 1)  # (B, H, W, Z, C)
+            probs = probs.reshape(probs.shape[0] * probs.shape[1] * probs.shape[2] * probs.shape[3], probs.shape[4])  # (B * H * W * Z, C)
 
-        loss_s = nn.CrossEntropyLoss(reduction='none')(masks_probs, true_masks)
+        true_masks = true_masks.reshape(-1)  # (B * T * H * W)
+        # probs = nn.Softmax()(probs)
+
+        loss_s = nn.CrossEntropyLoss(reduction='none')(probs, true_masks)
         loss_s = torch.mean(loss_s)
-        return loss_s, masks_probs
+        return loss_s, probs
 
 
 class SegmentationCrossEntropyLossDual(nn.Module):
@@ -33,8 +37,8 @@ class SegmentationCrossEntropyLossDual(nn.Module):
     def forward(self, output, labels):
         output = torch.cat([output[0][:, 0, ::], output[0][:, 1, ::]], 0)
         true_masks = torch.cat([labels[0][:, 0, ::], labels[0][:, 1, ::]], 0)
-        loss_s, masks_probs = self.SegmentationCrossEntropyLoss(output=(output, ), labels=(true_masks, ))
-        return loss_s, masks_probs
+        loss_s, probs = self.SegmentationCrossEntropyLoss(output=(output, ), labels=(true_masks, ))
+        return loss_s, probs
 
 
 class SegmentationDiceCoefficient(nn.Module):
@@ -43,10 +47,10 @@ class SegmentationDiceCoefficient(nn.Module):
 
     def forward(self, true_masks, out):
         n_classes = out.shape[1]
-        masks_probs = out.permute(0, 2, 3, 1)  # (B, H, W, C)
-        masks_probs = masks_probs.reshape(masks_probs.shape[0] * masks_probs.shape[1] * masks_probs.shape[2],
-                                          masks_probs.shape[3])  # (B * H * W, C)
-        _, masks_pred = torch.max(masks_probs, 1)
+        probs = out.permute(0, 2, 3, 1)  # (B, H, W, C)
+        probs = probs.reshape(probs.shape[0] * probs.shape[1] * probs.shape[2],
+                                          probs.shape[3])  # (B * H * W, C)
+        _, masks_pred = torch.max(probs, 1)
 
         dice = np.zeros(n_classes)
         dice_tp = np.zeros(n_classes)

@@ -35,7 +35,7 @@ class GAN(BaseModel):
     @staticmethod
     def add_model_specific_args(parent_parser):
         parser = parent_parser.add_argument_group("LitModel")
-        parser.add_argument("--lbx", dest='lbx', type=float, default=1)
+        parser.add_argument("--lbx", dest='lbx', type=float, default=0)
         parser.add_argument("--dc0", dest='dc0', type=float, default=1)
         return parent_parser
 
@@ -43,14 +43,13 @@ class GAN(BaseModel):
     def test_method(net_g, img, a=None):
         oriX = img[0]
 
-        print(a)
-        imgXX, _ = net_g(oriX, a=torch.FloatTensor([0]))
-        imgXX = nn.Sigmoid()(imgXX)  # mask
+        #imgXX, _ = net_g(oriX, a=torch.FloatTensor([0]))
+        #imgXX = nn.Sigmoid()(imgXX)  # mask
 
-        imgXY, _ = net_g(oriX, a=torch.FloatTensor([a]))
+        imgXY, _ = net_g(oriX, a=None)
         imgXY = nn.Sigmoid()(imgXY)  # mask
 
-        imgXX = combine(imgXX, oriX, method='mul')
+        #imgXX = combine(imgXX, oriX, method='mul')
         imgXY = combine(imgXY, oriX, method='mul')
 
         return imgXY
@@ -64,13 +63,13 @@ class GAN(BaseModel):
         self.oriX = batch['img'][0]
         self.oriY = batch['img'][1]
 
-        self.imgXY, _ = self.net_g(self.oriX, a=torch.abs(self.labels['paindiff']))
+        self.imgXY, self.imgXX = self.net_g(self.oriX, a=None)
         self.imgXY = nn.Sigmoid()(self.imgXY)  # mask
         self.imgXY = combine(self.imgXY, self.oriX, method='mul')
 
-        self.imgXX, _ = self.net_g(self.oriX, a=0 * torch.abs(self.labels['paindiff']))
-        self.imgXX = nn.Sigmoid()(self.imgXX)  # mask
-        self.imgXX = combine(self.imgXX, self.oriX, method='mul')
+        #self.imgXX, _ = self.net_g(self.oriX, a=0 * torch.abs(self.labels['paindiff']))
+        #self.imgXX = nn.Sigmoid()(self.imgXX)  # mask
+        #self.imgXX = combine(self.imgXX, self.oriX, method='mul')
         #self.imgYY = combine(self.imgYY, self.oriY, method='mul')
 
     def backward_g(self):
@@ -168,4 +167,4 @@ class GAN(BaseModel):
             self.log_helper.append(self.imgXY)
         ### STUPID
 
-# CUDA_VISIBLE_DEVICES=0 python train.py --jsn womac3 --prj 3D/test4/  --models descar4 --netG dsmcrel0a --netD bpatch_16 --split moaks
+# CUDA_VISIBLE_DEVICES=0 python train.py --jsn womac3 --prj 3D/test4fix/  --models descar4fix --netG dsmc --netD bpatch_16 --split moaks
