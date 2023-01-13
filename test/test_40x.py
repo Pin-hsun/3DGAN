@@ -13,10 +13,12 @@ x = test_set.__getitem__(0)['img']
 
 x = [y.permute(1, 0, 2, 3) for y in x]
 
-net = torch.load('/home/ubuntu/Data/logs/40x/cyc/test1/checkpoints/netGXY_model_epoch_40.pth').cuda()
+net = torch.load('/home/ubuntu/Data/logs/40xmun/test40x/d7/checkpoints/net_gXY_model_epoch_140.pth').cuda()
+net.train()
+#net = torch.load('/home/ubuntu/Data/logs/40x/cyc/test1/checkpoints/netGXY_model_epoch_40.pth').cuda()
 
 input = x[0][400:401, :, ::]
-out = net(input.cuda())[0].detach().cpu()
+out = net(input.cuda(), a=None)[0].detach().cpu()
 
-imagesc(input[0, 0,:256,:256])
-imagesc(out[0,0,:256, :256])
+imagesc(input[0, 0,-512:,-512:])
+imagesc(out[0, 0,-512:,-512:])

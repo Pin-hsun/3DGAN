@@ -40,6 +40,11 @@ def customize_data_split(args):
                 train_index = range(0, 14000)
                 test_index = range(14000, 16317)
 
+        if dataset == '40xmun':
+            if split == 'a':
+                train_index = range(0, 8000)
+                test_index = range(8000, 8160)
+
     else:
         folder = '/train/'
         train_index = None

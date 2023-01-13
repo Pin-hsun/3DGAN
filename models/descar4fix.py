@@ -37,6 +37,7 @@ class GAN(BaseModel):
         parser = parent_parser.add_argument_group("LitModel")
         parser.add_argument("--lbx", dest='lbx', type=float, default=0)
         parser.add_argument("--dc0", dest='dc0', type=float, default=1)
+        parser.add_argument("--lvbgg", dest='lbvgg', type=float, default=1)
         return parent_parser
 
     @staticmethod
@@ -85,10 +86,12 @@ class GAN(BaseModel):
         # L1(XX, X)
         loss_l1x = self.add_loss_l1(a=self.imgXX, b=self.oriX)
 
-        loss_ga = axy# * 0.5 + axx * 0.5
-        loss_g = loss_ga + loss_l1 * self.hparams.lamb + loss_l1x * self.hparams.lbx
+        loss_gvgg = self.VGGloss(torch.cat([self.imgXY] * 3, 1), torch.cat([self.oriY] * 3, 1))
 
-        return {'sum': loss_g, 'l1': loss_l1, 'ga': loss_ga}
+        loss_ga = axy# * 0.5 + axx * 0.5
+        loss_g = loss_ga + loss_l1 * self.hparams.lamb + loss_l1x * self.hparams.lbx + loss_gvgg * self.hparams.lbvgg
+
+        return {'sum': loss_g, 'l1': loss_l1, 'ga': loss_ga, 'gvgg': loss_gvgg}
 
     def backward_d(self):
         # ADV(XY)-
@@ -167,4 +170,4 @@ class GAN(BaseModel):
             self.log_helper.append(self.imgXY)
         ### STUPID
 
-# CUDA_VISIBLE_DEVICES=0 python train.py --jsn womac3 --prj 3D/test4fix/  --models descar4fix --netG dsmc --netD bpatch_16 --split moaks
+# CUDA_VISIBLE_DEVICES=0 python train.py --jsn womac3 --prj 3D/test4fixVgg1/  --models descar4fix --netG dsmc --netD bpatch_16 --split b --dataset womac4

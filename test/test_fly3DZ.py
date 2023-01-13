@@ -105,6 +105,26 @@ def make_rotation_3d(stepx, stepy):
         del all
 
 
+def calculate_variance():
+    root = '/media/ghc/GHc_data2/N3D/F0OTrd2k/xyzft0/'
+    x = sorted(glob.glob(root + '*0.tif'))
+    t = [tiff.imread(y) for y in x]
+
+
+def ori_var_overlap():
+    root = '/media/ghc/GHc_data2/N3D/'
+    ori = tiff.imread(root + 'ori.tif')
+    var = tiff.imread('/media/ghc/GHc_data2/N3D/F0OTrd2k/xyzft0/var2.tif')
+    var = var / var.max()
+
+    for i in range(300, 1792, 1):
+        r = ori[i, :, :] * 1
+        g = np.multiply(ori[i, :, :], 1 - 0.3 * var[i, :, :])
+        b = np.multiply(ori[i, :, :], 1 - 0.3 * var[i, :, :])
+        o = np.stack([r, g, b], 0)
+        imagesc(o, show=False, save=root + 'F0OTrd2k/xyzft0/overlapall/' + str(i).zfill(4) + '.png')
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='pix2pix-pytorch-implementation')
     parser.add_argument('--dataset', type=str, default='Fly0B', help='environment_to_use')
