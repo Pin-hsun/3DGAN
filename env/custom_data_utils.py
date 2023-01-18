@@ -8,7 +8,7 @@ def customize_data_split(args):
         folder = '/full/'
         if dataset == 'womac3':
             if split == 'moaks':
-                df = pd.read_csv('env/subjects_womac3.csv')
+                df = pd.read_csv('env/csv/womac3.csv')
                 train_index = [x for x in range(df.shape[0]) if not df['has_moaks'][x]]
                 test_index = [x for x in range(df.shape[0]) if df['has_moaks'][x]]
             elif split == 'a':
@@ -44,6 +44,11 @@ def customize_data_split(args):
             if split == 'a':
                 train_index = range(0, 8000)
                 test_index = range(8000, 8160)
+
+        if dataset == 'Henry221215':
+            if split == 'a':
+                train_index = range(0, 5000)
+                test_index = range(5000, 6080)
 
     else:
         folder = '/train/'

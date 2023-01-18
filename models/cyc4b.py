@@ -13,6 +13,7 @@ class GAN(BaseModel):
     def __init__(self, hparams, train_loader, test_loader, checkpoints):
         BaseModel.__init__(self, hparams, train_loader, test_loader, checkpoints)
 
+        self.net_g, self.net_d = self.set_networks()
         self.net_gXY = self.net_g
         self.net_gYX = copy.deepcopy(self.net_g)
 
@@ -40,10 +41,9 @@ class GAN(BaseModel):
         output, output1 = net_g(torch.cat((x[0], x[1]), 1), a=None)
         return output1
 
-    def generation(self):  # 0
+    def generation(self, batch):  # 0
         # zyweak_zyorisb%xyweak_xyorisb
-        img = self.batch['img']
-        names = self.batch['filenames']
+        img = batch['img']
 
         self.oriXw = img[0]
         self.oriXo = img[1]
@@ -70,56 +70,57 @@ class GAN(BaseModel):
     def backward_g(self):
         loss_g = 0
         # ADV(XYw)+
-        loss_g += self.add_loss_adv(a=self.imgXYw, net_d=self.net_dYw, coeff=1, truth=True)
+        loss_g += self.add_loss_adv(a=torch.cat([self.imgXYw, self.imgXYo], 1), net_d=self.net_dYw, truth=True)
         # ADV(YXw)+
-        loss_g += self.add_loss_adv(a=self.imgYXw, net_d=self.net_dXw, coeff=1, truth=True)
+        loss_g += self.add_loss_adv(a=torch.cat([self.imgYXw, self.imgYXo], 1), net_d=self.net_dXw, truth=True)
         # ADV(XYo)+
-        loss_g += self.add_loss_adv(a=self.imgXYo, net_d=self.net_dYo, coeff=1, truth=True)
+        #loss_g += self.add_loss_adv(a=self.imgXYo, net_d=self.net_dYo, truth=True)
         # ADV(YXo)+
-        loss_g += self.add_loss_adv(a=self.imgYXo, net_d=self.net_dXo, coeff=1, truth=True)
+        #loss_g += self.add_loss_adv(a=self.imgYXo, net_d=self.net_dXo, truth=True)
 
         # Cyclic(XYXw, Xw)
-        loss_g += self.add_loss_l1(a=self.imgXYXw, b=self.oriXw, coeff=self.hparams.lamb)
+        loss_g += self.add_loss_l1(a=self.imgXYXw, b=self.oriXw) * self.hparams.lamb
         # Cyclic(YXYw, Yw)
-        loss_g += self.add_loss_l1(a=self.imgYXYw, b=self.oriYw, coeff=self.hparams.lamb)
+        loss_g += self.add_loss_l1(a=self.imgYXYw, b=self.oriYw) * self.hparams.lamb
         # Cyclic(XYXo, Xo)
-        loss_g += self.add_loss_l1(a=self.imgXYXo, b=self.oriXo, coeff=self.hparams.lamb)
+        loss_g += self.add_loss_l1(a=self.imgXYXo, b=self.oriXo) * self.hparams.lamb
         # Cyclic(YXYo, Yo)
-        loss_g += self.add_loss_l1(a=self.imgYXYo, b=self.oriYo, coeff=self.hparams.lamb)
+        loss_g += self.add_loss_l1(a=self.imgYXYo, b=self.oriYo) * self.hparams.lamb
 
         # Identity(idt_X, X)
         if self.hparams.lambI > 0:
             # Identity(idt_Xw, Xw)
-            loss_g += self.add_loss_l1(a=self.idt_Xw, b=self.oriXw, coeff=self.hparams.lambI)
+            loss_g += self.add_loss_l1(a=self.idt_Xw, b=self.oriXw) * self.hparams.lambI
             # Identity(idt_Yw, Yw)
-            loss_g += self.add_loss_l1(a=self.idt_Yw, b=self.oriYw, coeff=self.hparams.lambI)
+            loss_g += self.add_loss_l1(a=self.idt_Yw, b=self.oriYw) * self.hparams.lambI
             # Identity(idt_Xo, Xo)
-            loss_g += self.add_loss_l1(a=self.idt_Xo, b=self.oriXo, coeff=self.hparams.lambI)
+            loss_g += self.add_loss_l1(a=self.idt_Xo, b=self.oriXo) * self.hparams.lambI
             # Identity(idt_Yo, Yo)
-            loss_g += self.add_loss_l1(a=self.idt_Yo, b=self.oriYo, coeff=self.hparams.lambI)
+            loss_g += self.add_loss_l1(a=self.idt_Yo, b=self.oriYo) * self.hparams.lambI
 
         return {'sum': loss_g, 'loss_g': loss_g}
 
     def backward_d(self):
         loss_d = 0
         # ADV(XY)-
-        loss_d += self.add_loss_adv(a=self.imgXYw, net_d=self.net_dYw, coeff=1, truth=False)
-        loss_d += self.add_loss_adv(a=self.imgXYo, net_d=self.net_dYo, coeff=1, truth=False)
+        loss_d += self.add_loss_adv(a=torch.cat([self.imgXYw, self.imgXYo], 1), net_d=self.net_dYw, truth=False)
+        #loss_d += self.add_loss_adv(a=self.imgXYo, net_d=self.net_dYo, truth=False)
 
         # ADV(YX)-
-        loss_d += self.add_loss_adv(a=self.imgYXw, net_d=self.net_dXw, coeff=1, truth=False)
-        loss_d += self.add_loss_adv(a=self.imgYXo, net_d=self.net_dXo, coeff=1, truth=False)
+        loss_d += self.add_loss_adv(a=torch.cat([self.imgYXw, self.imgYXo], 1), net_d=self.net_dXw, truth=False)
+        #loss_d += self.add_loss_adv(a=self.imgYXo, net_d=self.net_dXo, truth=False)
 
         # ADV(Y)+
-        loss_d += self.add_loss_adv(a=self.oriYw, net_d=self.net_dYw, coeff=1, truth=True)
-        loss_d += self.add_loss_adv(a=self.oriYo, net_d=self.net_dYo, coeff=1, truth=True)
+        loss_d += self.add_loss_adv(a=self.torch.cat([self.oriYw, self.oriYo], 1), net_d=self.net_dYw, truth=True)
+        #loss_d += self.add_loss_adv(a=self.oriYo, net_d=self.net_dYo, truth=True)
 
         # ADV(X)+
-        loss_d += self.add_loss_adv(a=self.oriXw, net_d=self.net_dXw, coeff=1, truth=True)
-        loss_d += self.add_loss_adv(a=self.oriXo, net_d=self.net_dXo, coeff=1, truth=True)
+        loss_d += self.add_loss_adv(a=torch.cat([self.oriXw, self.oriXo], 1), net_d=self.net_dXw, truth=True)
+        #loss_d += self.add_loss_adv(a=self.oriXo, net_d=self.net_dXo, truth=True)
 
         return {'sum': loss_d, 'loss_d': loss_d}
 
 
 # USAGE
 # CUDA_VISIBLE_DEVICES=0 python train.py --jsn wnwp3d --prj wnwp3d/cyc4/GdenuWBmcOct13 --mc --models cyc4 -b 16 --netG descarnoumc --direction zyweak_zysb%xyweak_xysb
+# CUDA_VISIBLE_DEVICES=0,1,2,3 python train.py --jsn 40x2fly10 --prj cyc3/40xA --models cyc4 -b 16 --direction 40ft0_40ori2%xyft0_xyori --dataset 40xhan --input_nc 2 --trd 500

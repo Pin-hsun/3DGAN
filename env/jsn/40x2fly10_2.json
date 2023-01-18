@@ -1,7 +1,7 @@
 {
     "train":
         {
-            "env": "a6k",
+            "env": null,
             "gray": true,
             "prj": "default",
             "models": "cyc",
@@ -18,7 +18,7 @@
             "norm": "batch",
             "mc": false,
             "netD": "descar",
-            "input_nc": 1,
+            "input_nc": 2,
             "output_nc": 1,
             "ngf": 64,
             "ndf": 64,
