@@ -167,15 +167,15 @@ class Generator(nn.Module):
         x0 = self.down0(x)
         x1 = self.down1(x0)
         x2 = self.down2(x1)   # Dropout
-        x3 = self.down3(x2)   # Dropout
+        x30 = self.down3(x2)   # Dropout
 
         # injection
 
         # tiled_a = a * tile_like(torch.ones((x3.shape[0], 1)), x3).type_as(x3)
-        Z = x3.shape[0] // a.shape[0]  # thickness = B*Z / B
+        Z = x30.shape[0] // a.shape[0]  # thickness = B*Z / B
 
-        tiled_a = tile_like(a.unsqueeze(1).repeat(1, Z).view(-1, 1), x3).type_as(x3)
-        x3 = torch.cat([x3, tiled_a], 1)
+        tiled_a = tile_like(a.unsqueeze(1).repeat(1, Z).view(-1, 1), x30).type_as(x30)
+        x3 = torch.cat([x30, tiled_a], 1)
 
         xu3 = self.up3(x3)
         #cat3 = torch.cat([xu3, x2], 1)
@@ -199,7 +199,7 @@ class Generator(nn.Module):
         x70 = self.conv7_k(xu1)
         x71 = self.conv7_g(xu1)
 
-        return x70, x71
+        return {'out0': x70, 'out1': x71, 'z': x30}
 
 
 if __name__ == '__main__':

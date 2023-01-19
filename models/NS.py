@@ -9,40 +9,48 @@ class GAN(BaseModel):
     def __init__(self, hparams, train_loader, test_loader, checkpoints):
         BaseModel.__init__(self, hparams, train_loader, test_loader, checkpoints)
 
+        self.net_g, self.net_d = self.set_networks()
+
+        self.init_optimizer_scheduler()
+
+        # save model names
+        self.netg_names = {'net_g': 'net_g'}
+        self.netd_names = {'net_d': 'net_d'}
+
     @staticmethod
     def add_model_specific_args(parent_parser):
         return parent_parser
 
     def test_method(self, net_g, img):
         self.oriX = img[0]
-        self.imgX0 = net_g(self.oriX)[0]
+        self.imgX0 = net_g(self.oriX, a=None)[0]
         return self.imgX0
 
-    def generation(self):
-        img = self.batch['img']
+    def generation(self, batch):
+        img = batch['img']
         self.oriX = img[0]
         self.oriY = img[1]
-        self.imgX0 = self.net_g(self.oriX)[0]
+        self.imgX0 = self.net_g(self.oriX, a=None)[0]
         if self.hparams.cmb is not False:
             self.imgX0 = combine(self.imgX0, self.oriX, method=self.hparams.cmb)
 
-    def backward_g(self, inputs):
+    def backward_g(self):
         # ADV(X0, Y)+
         loss_g = 0
-        loss_g += self.add_loss_adv(a=self.imgX0, net_d=self.net_d, coeff=1, truth=True, stacked=False)
+        loss_g += self.add_loss_adv(a=self.imgX0, net_d=self.net_d, truth=True) * 1
 
         # L1(X0, Y)
-        loss_g += self.add_loss_l1(a=self.imgX0, b=self.oriY, coeff=self.hparams.lamb)
+        loss_g += self.add_loss_l1(a=self.imgX0, b=self.oriY) * self.hparams.lamb
 
         return {'sum': loss_g, 'loss_g': loss_g}
 
-    def backward_d(self, inputs):
+    def backward_d(self):
         loss_d = 0
         # ADV(X0, Y)-
-        loss_d += self.add_loss_adv(a=self.imgX0, net_d=self.net_d, coeff=0.5, truth=False, stacked=False)
+        loss_d += self.add_loss_adv(a=self.imgX0, net_d=self.net_d, truth=False) * 0.5
 
         # ADV(X, Y)+
-        loss_d += self.add_loss_adv(a=self.oriY, net_d=self.net_d, coeff=0.5, truth=True, stacked=False)
+        loss_d += self.add_loss_adv(a=self.oriY, net_d=self.net_d, truth=True) * 0.5
 
         return {'sum': loss_d, 'loss_d': loss_d}
 

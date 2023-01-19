@@ -20,12 +20,14 @@ class GAN(BaseModel):
         # First, modify the hyper-parameters if necessary
         # Initialize the networks
         self.net_g, self.net_d = self.set_networks()
-        self.net_dX = copy.deepcopy(self.net_d)
+        #self.net_dX = copy.deepcopy(self.net_d)
         self.classifier = nn.Conv2d(256, 1, 1, stride=1, padding=0).cuda()
 
+        self.net_z = copy.deepcopy(self.net_d)
+
         # update names of the models for optimization
-        self.netg_names = {'net_g': 'net_g'}
-        self.netd_names = {'net_d': 'net_d', 'classifier': 'classifier', 'net_dX': 'net_dX'}#, 'net_class': 'netDC'}
+        self.netg_names = {'net_g': 'net_g', 'net_z': 'net_z', 'classifier': 'classifier'}
+        self.netd_names = {'net_d': 'net_d'}#, 'net_class': 'netDC'}
 
         self.oai = OaiSubjects(self.hparams.dataset)
 
@@ -46,11 +48,11 @@ class GAN(BaseModel):
         oriX = img[0]
 
         print(a)
-        imgXX, _ = net_g(oriX, a=torch.FloatTensor([0]))
-        imgXX = nn.Sigmoid()(imgXX)  # mask
+        imgXX = net_g(oriX, a=torch.FloatTensor([0]))
+        imgXX = nn.Sigmoid()(imgXX['out0'])  # mask
 
-        imgXY, _ = net_g(oriX, a=torch.FloatTensor([a]))
-        imgXY = nn.Sigmoid()(imgXY)  # mask
+        imgXY = net_g(oriX, a=torch.FloatTensor([a]))
+        imgXY = nn.Sigmoid()(imgXY['out0'])  # mask
 
         imgXX = combine(imgXX, oriX, method='mul')
         imgXY = combine(imgXY, oriX, method='mul')
@@ -75,34 +77,43 @@ class GAN(BaseModel):
         self.imgXY = nn.Sigmoid()(outXa['out0'])  # mask
         self.imgXY = combine(self.imgXY, self.oriX, method='mul')
 
-        if not self.hparams.fix:
-            outX0 = self.net_g(self.oriX, a=0 * torch.abs(self.labels['paindiff']))
-            self.imgXX = nn.Sigmoid()(outX0['out0'])  # mask
-            self.imgXX = combine(self.imgXX, self.oriX, method='mul')
+        outX0 = self.net_g(self.oriX, a=0 * torch.abs(self.labels['paindiff']))
+        self.imgXX = nn.Sigmoid()(outX0['out0'])  # mask
+        self.imgXX = combine(self.imgXX, self.oriX, method='mul')
+
+        imgXYz = self.net_g(self.imgXY, a=0 * torch.abs(self.labels['paindiff']))['z']
+        oriYz = self.net_g(self.oriY, a=0 * torch.abs(self.labels['paindiff']))['z']
+
+        #self.oriXz = outXa['z']
+        self.imgXYz = imgXYz
+        self.oriYz = oriYz
 
     def backward_g(self):
         # ADV(XY)+
         axy = self.add_loss_adv(a=self.imgXY, net_d=self.net_d, truth=True)
 
-        # ADV(XY)+
-        #axx, _ = self.add_loss_adv_classify3d(a=self.imgXX, net_d=self.net_dX, truth_adv=True, truth_classify=False)
-
         # L1(XY, Y)
         loss_l1 = self.add_loss_l1(a=self.imgXY, b=self.oriY)
 
         # L1(XX, X)
-        if not self.hparams.fix:
-            loss_l1x = self.add_loss_l1(a=self.imgXX, b=self.oriX)
+        loss_l1x = self.add_loss_l1(a=self.imgXX, b=self.oriX)
 
         loss_ga = axy# * 0.5 + axx * 0.5
 
         loss_gvgg = self.VGGloss(torch.cat([self.imgXY] * 3, 1), torch.cat([self.oriY] * 3, 1))
 
-        loss_g = loss_ga + loss_l1 * self.hparams.lamb + loss_gvgg * self.hparams.lbvgg
-        if not self.hparams.fix:
-            loss_g += loss_l1x * self.hparams.lbx
+        # Z
+        loss_z = self.MSELoss(self.oriYz, self.imgXYz) * 100000
 
-        return {'sum': loss_g, 'l1': loss_l1, 'ga': loss_ga, 'gvgg': loss_gvgg}
+        # ax: adversarial of x, ay: adversarial of y
+        _, _, _, _, classify_a, classify_b = self.add_loss_adv_classify3d_paired(a=self.oriX, b=self.oriY, net_d=self.net_z,
+                                                           classifier=self.classifier,
+                                                           truth_adv=True, truth_classify=self.labels['painbinary'])
+
+        loss_g = loss_ga + loss_l1 * self.hparams.lamb + loss_l1x * self.hparams.lbx\
+                 + loss_z + loss_gvgg * self.hparams.lbvgg
+
+        return {'sum': loss_g, 'l1': loss_l1, 'ga': loss_ga, 'z': loss_z, 'gvgg': loss_gvgg}
 
     def backward_d(self):
         # ADV(XY)-
@@ -112,16 +123,16 @@ class GAN(BaseModel):
         #axx, _ = self.add_loss_adv_classify3d(a=self.imgXX, net_d=self.net_dX, truth_adv=False, truth_classify=False)
 
         # ax: adversarial of x, ay: adversarial of y
-        ax, ay, cxy, _ = self.add_loss_adv_classify3d_paired(a=self.oriX, b=self.oriY, net_d=self.net_d,
+        ax, ay, _, _, _, _ = self.add_loss_adv_classify3d_paired(a=self.oriX, b=self.oriY, net_d=self.net_d,
                                                              classifier=self.classifier,
                                                              truth_adv=True, truth_classify=self.labels['painbinary'])
         # adversarial of xy (-) and y (+)
         loss_da = axy * 0.5 + ay * 0.5#axy * 0.25 + axx * 0.25 + ax * 0.25 + ay * 0.25
         # classify x (+) vs y (-)
-        loss_dc = cxy
-        loss_d = loss_da + loss_dc * self.hparams.dc0
+        #loss_dc = cxy
+        loss_d = loss_da #+ loss_dc * self.hparams.dc0
 
-        return {'sum': loss_d, 'da': loss_da, 'dc': loss_dc}
+        return {'sum': loss_d, 'da': loss_da}#, 'dc': loss_dc}
 
     def add_loss_adv_classify3d_paired(self, a, b, net_d, classifier, truth_adv, truth_classify):
         adv_a, classify_a = net_d(a)  # (B*Z, 1, dH, dW), (B*Z, C, dH, dW)
@@ -138,12 +149,12 @@ class GAN(BaseModel):
 
         classify, classify_logits = classify_easy_3d(classify_logits, truth_classify, classifier, nn.BCEWithLogitsLoss())
 
-        return adv_a, adv_b, classify, classify_logits
+        return adv_a, adv_b, classify, classify_logits, classify_a, classify_b
 
     def validation_step(self, batch, batch_idx):
         self.generation(batch)
 
-        ax, ay, cxy, lxy = self.add_loss_adv_classify3d_paired(a=self.oriX, b=self.oriY, net_d=self.net_d,
+        ax, ay, cxy, lxy, _, _ = self.add_loss_adv_classify3d_paired(a=self.oriX, b=self.oriY, net_d=self.net_d,
                                                                classifier=self.classifier,
                                                                truth_adv=True, truth_classify=self.labels['painbinary'])
         loss_dc = cxy
@@ -181,4 +192,4 @@ class GAN(BaseModel):
             self.log_helper.append(self.imgXY)
         ### STUPID
 
-# CUDA_VISIBLE_DEVICES=0,1 python train.py --jsn womac3 --prj 3D/test4/  --models descar4 --netG dsmcrel0a --netD bpatch_16 --split moaks
+# CUDA_VISIBLE_DEVICES=0,1 python train.py --jsn womac3 --prj 3D/test4ano/0/  --models descar4ano --netG dsnumcrel0a --netD bpatch_16 --split moaks

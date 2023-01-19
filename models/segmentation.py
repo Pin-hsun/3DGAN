@@ -16,7 +16,7 @@ class GAN(BaseModel):
         BaseModel.__init__(self, hparams, train_loader, test_loader, checkpoints)
 
         # set networks
-        self.hparams.output_nc = 7
+        self.hparams.output_nc = 2
         self.segnet, _ = self.set_networks()
         # update model names
         self.seg_names = {'segnet': 'segnet'}
@@ -55,7 +55,8 @@ class GAN(BaseModel):
         self.ori = img[1]
         self.ori = self.ori / self.ori.max()
 
-        self.mask = img[0].type(torch.LongTensor).to(self.ori.device)
+        self.mask = img[0]
+        self.mask = self.mask.type(torch.LongTensor).to(self.ori.device)
         self.mask[self.mask == 3] = 2
         self.oriseg = self.segnet(self.ori)[0]
 

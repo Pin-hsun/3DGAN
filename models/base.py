@@ -124,6 +124,7 @@ class BaseModel(pl.LightningModule):
         self.CELoss = CrossEntropyLoss()
         self.criterionL1 = nn.L1Loss()
         self.VGGloss = VGGLoss().cuda()
+        self.MSELoss = nn.MSELoss()
         if self.hparams.gan_mode == 'vanilla':
             self.criterionGAN = nn.BCEWithLogitsLoss()
         else:
@@ -144,8 +145,9 @@ class BaseModel(pl.LightningModule):
 
     def configure_optimizers(self):
         netg_parameters = []
-        print(self.netd_names.keys())
         print('configure optimizer being called')
+        print(self.netg_names.keys())
+        print(self.netd_names.keys())
         for g in self.netg_names.keys():
             netg_parameters = netg_parameters + list(getattr(self, g).parameters())
 
@@ -302,7 +304,7 @@ class BaseModel(pl.LightningModule):
         elif self.hparams.netD == 'acgan':
             from networks.acgan import Discriminator
             print('use acgan discriminator')
-            net_d = Discriminator(img_shape=(self.hparams.input_nc_nc * 1, 256, 256), n_classes=2)
+            net_d = Discriminator(img_shape=(self.hparams.output_nc_nc * 1, 256, 256), n_classes=2)
         elif self.hparams.netD == 'attgan':
             from networks.AttGAN.attgan import Discriminators
             print('use attgan discriminator')
@@ -310,15 +312,15 @@ class BaseModel(pl.LightningModule):
         elif self.hparams.netD == 'descar':
             from networks.DeScarGan.descargan import Discriminator
             print('use descargan discriminator')
-            net_d = Discriminator(n_channels=self.hparams.input_nc * 1)
+            net_d = Discriminator(n_channels=self.hparams.output_nc * 1)
         elif self.hparams.netD == 'ugatit':
             from networks.ugatit.networks import Discriminator
             print('use ugatit discriminator')
-            net_d = Discriminator(self.hparams.input_nc * 1, ndf=64, n_layers=5)
+            net_d = Discriminator(self.hparams.output_nc * 1, ndf=64, n_layers=5)
         elif self.hparams.netD == 'ugatitb':
             from networks.ugatit.networksb import Discriminator
             print('use ugatitb discriminator')
-            net_d = Discriminator(self.hparams.input_nc * 1, ndf=64, n_layers=5)
+            net_d = Discriminator(self.hparams.output_nc * 1, ndf=64, n_layers=5)
         # original pix2pix, the size of patchgan is strange, just use for pixel-D
         else:
             from networks.networks import define_D

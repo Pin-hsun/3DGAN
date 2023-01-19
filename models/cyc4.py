@@ -13,14 +13,10 @@ class GAN(BaseModel):
     def __init__(self, hparams, train_loader, test_loader, checkpoints):
         BaseModel.__init__(self, hparams, train_loader, test_loader, checkpoints)
 
-        self.hparams.input_nc = 2
-        self.hparams.output_nc = 1
-        self.net_g, _ = self.set_networks()
+        self.net_g, self.net_d = self.set_networks()
         self.net_gXY = self.net_g
         self.net_gYX = copy.deepcopy(self.net_g)
 
-        self.hparams.output_nc = 2
-        _, self.net_d = self.set_networks()
         self.net_dXo = copy.deepcopy(self.net_d)
         self.net_dXw = copy.deepcopy(self.net_d)
         self.net_dYo = copy.deepcopy(self.net_d)
@@ -74,13 +70,13 @@ class GAN(BaseModel):
     def backward_g(self):
         loss_g = 0
         # ADV(XYw)+
-        loss_g += self.add_loss_adv(a=torch.cat([self.imgXYw, self.imgXYo], 1), net_d=self.net_dYw, truth=True)
+        loss_g += self.add_loss_adv(a=self.imgXYw, net_d=self.net_dYw, truth=True)
         # ADV(YXw)+
-        loss_g += self.add_loss_adv(a=torch.cat([self.imgYXw, self.imgYXo], 1), net_d=self.net_dXw, truth=True)
+        loss_g += self.add_loss_adv(a=self.imgYXw, net_d=self.net_dXw, truth=True)
         # ADV(XYo)+
-        #loss_g += self.add_loss_adv(a=self.imgXYo, net_d=self.net_dYo, truth=True)
+        loss_g += self.add_loss_adv(a=self.imgXYo, net_d=self.net_dYo, truth=True)
         # ADV(YXo)+
-        #loss_g += self.add_loss_adv(a=self.imgYXo, net_d=self.net_dXo, truth=True)
+        loss_g += self.add_loss_adv(a=self.imgYXo, net_d=self.net_dXo, truth=True)
 
         # Cyclic(XYXw, Xw)
         loss_g += self.add_loss_l1(a=self.imgXYXw, b=self.oriXw) * self.hparams.lamb
@@ -107,20 +103,20 @@ class GAN(BaseModel):
     def backward_d(self):
         loss_d = 0
         # ADV(XY)-
-        loss_d += self.add_loss_adv(a=torch.cat([self.imgXYw, self.imgXYo], 1), net_d=self.net_dYw, truth=False)
-        #loss_d += self.add_loss_adv(a=self.imgXYo, net_d=self.net_dYo, truth=False)
+        loss_d += self.add_loss_adv(a=self.imgXYw, net_d=self.net_dYw, truth=False)
+        loss_d += self.add_loss_adv(a=self.imgXYo, net_d=self.net_dYo, truth=False)
 
         # ADV(YX)-
-        loss_d += self.add_loss_adv(a=torch.cat([self.imgYXw, self.imgYXo], 1), net_d=self.net_dXw, truth=False)
-        #loss_d += self.add_loss_adv(a=self.imgYXo, net_d=self.net_dXo, truth=False)
+        loss_d += self.add_loss_adv(a=self.imgYXw, net_d=self.net_dXw, truth=False)
+        loss_d += self.add_loss_adv(a=self.imgYXo, net_d=self.net_dXo, truth=False)
 
         # ADV(Y)+
-        loss_d += self.add_loss_adv(a=torch.cat([self.oriYw, self.oriYo], 1), net_d=self.net_dYw, truth=True)
-        #loss_d += self.add_loss_adv(a=self.oriYo, net_d=self.net_dYo, truth=True)
+        loss_d += self.add_loss_adv(a=self.oriYw, net_d=self.net_dYw, truth=True)
+        loss_d += self.add_loss_adv(a=self.oriYo, net_d=self.net_dYo, truth=True)
 
         # ADV(X)+
-        loss_d += self.add_loss_adv(a=torch.cat([self.oriXw, self.oriXo], 1), net_d=self.net_dXw, truth=True)
-        #loss_d += self.add_loss_adv(a=self.oriXo, net_d=self.net_dXo, truth=True)
+        loss_d += self.add_loss_adv(a=self.oriXw, net_d=self.net_dXw, truth=True)
+        loss_d += self.add_loss_adv(a=self.oriXo, net_d=self.net_dXo, truth=True)
 
         return {'sum': loss_d, 'loss_d': loss_d}
 

@@ -5,7 +5,7 @@ import pandas as pd
 
 class OaiSubjects():
     def __init__(self, dataset):
-        self.df = pd.read_csv('env/' + 'subjects_' + dataset + '.csv')
+        self.df = pd.read_csv('env/csv/' + dataset + '.csv')
         self.df['ID'] = [str(x) for x in self.df['ID']]
 
     def labels_unilateral(self, filenames):

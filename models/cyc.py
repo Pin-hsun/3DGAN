@@ -40,15 +40,16 @@ class GAN(BaseModel):
         self.oriX = img[0]
         self.oriY = img[1]
 
-        self.imgXY = self.net_gXY(self.oriX, a=None)[0]
-        self.imgYX = self.net_gYX(self.oriY, a=None)[0]
+        self.imgXY = self.net_gXY(self.oriX)[0]
+        self.imgYX = self.net_gYX(self.oriY)[0]
 
-        self.imgXYX = self.net_gYX(self.imgXY, a=None)[0]
-        self.imgYXY = self.net_gXY(self.imgYX, a=None)[0]
+        if self.hparams.lamb > 0:
+            self.imgXYX = self.net_gYX(self.imgXY)[0]
+            self.imgYXY = self.net_gXY(self.imgYX)[0]
 
         if self.hparams.lambI > 0:
-            self.idt_X = self.net_gYX(self.oriX, a=None)[0]
-            self.idt_Y = self.net_gXY(self.oriY, a=None)[0]
+            self.idt_X = self.net_gYX(self.oriX)[0]
+            self.idt_Y = self.net_gXY(self.oriY)[0]
 
     def backward_g(self):
         loss_g = 0
@@ -58,9 +59,10 @@ class GAN(BaseModel):
         loss_g += self.add_loss_adv(a=self.imgYX, net_d=self.net_dX, truth=True)
 
         # Cyclic(XYX, X)
-        loss_g += self.add_loss_l1(a=self.imgXYX, b=self.oriX) * self.hparams.lamb
-        # Cyclic(YXY, Y)
-        loss_g += self.add_loss_l1(a=self.imgYXY, b=self.oriY) * self.hparams.lamb
+        if self.hparams.lamb > 0:
+            loss_g += self.add_loss_l1(a=self.imgXYX, b=self.oriX) * self.hparams.lamb
+            # Cyclic(YXY, Y)
+            loss_g += self.add_loss_l1(a=self.imgYXY, b=self.oriY) * self.hparams.lamb
 
         # Identity(idt_X, X)
         if self.hparams.lambI > 0:
