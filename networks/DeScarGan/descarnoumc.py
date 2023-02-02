@@ -11,7 +11,6 @@ class Generator(nn.Module):
 
         max_pool = nn.MaxPool2d(2)
         act = activation
-        self.label_k = torch.tensor([0, 1]).half().cuda()
         self.c_dim = 0
 
         if mc:
@@ -90,9 +89,9 @@ class Generator(nn.Module):
         x70 = self.conv7_k(xu1)
         x71 = self.conv7_g(xu1)
 
-        return x70, x71
+        return {'out0': x70, 'out1': x71, 'z': x3}
 
 
 if __name__ == '__main__':
-    g = Generator(n_channels=3, batch_norm=False, final='tanh').cuda()
-    print(g(torch.rand(1, 3, 128, 128).cuda(), a=torch.ones(2, 2).cuda())[0].shape)
+    g = Generator(n_channels=3, batch_norm=False, final='tanh')
+    out = g(torch.rand(1, 3, 256, 256), a=None)

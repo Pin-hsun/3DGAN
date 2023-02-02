@@ -8,7 +8,7 @@ import pytorch_lightning as pl
 from utils.metrics_segmentation import SegmentationCrossEntropyLoss
 from utils.metrics_classification import CrossEntropyLoss, GetAUC
 from utils.data_utils import *
-from models.base import BaseModel, combine
+from models.base import BaseModel, combine, VGGLoss
 import pandas as pd
 from models.helper_oai import OaiSubjects, classify_easy_3d, swap_by_labels
 from models.helper import reshape_3d, tile_like
@@ -31,6 +31,9 @@ class GAN(BaseModel):
 
         self.oai = OaiSubjects(self.hparams.dataset)
 
+        if hparams.lbvgg > 0:
+            self.VGGloss = VGGLoss().cuda()
+
         # Finally, initialize the optimizers and scheduler
         self.init_optimizer_scheduler()
 
@@ -40,7 +43,7 @@ class GAN(BaseModel):
         parser.add_argument("--lbx", dest='lbx', type=float, default=1)
         parser.add_argument("--dc0", dest='dc0', type=float, default=1)
         parser.add_argument("--fix", dest='fix', action='store_true', default=False)
-        parser.add_argument("--lvbgg", dest='lbvgg', type=float, default=1)
+        parser.add_argument("--lbvgg", dest='lbvgg', type=float, default=1)
         return parent_parser
 
     @staticmethod
@@ -100,8 +103,6 @@ class GAN(BaseModel):
 
         loss_ga = axy# * 0.5 + axx * 0.5
 
-        loss_gvgg = self.VGGloss(torch.cat([self.imgXY] * 3, 1), torch.cat([self.oriY] * 3, 1))
-
         # Z
         loss_z = self.MSELoss(self.oriYz, self.imgXYz) * 100000
 
@@ -111,9 +112,13 @@ class GAN(BaseModel):
                                                            truth_adv=True, truth_classify=self.labels['painbinary'])
 
         loss_g = loss_ga + loss_l1 * self.hparams.lamb + loss_l1x * self.hparams.lbx\
-                 + loss_z + loss_gvgg * self.hparams.lbvgg
+                 + loss_z
 
-        return {'sum': loss_g, 'l1': loss_l1, 'ga': loss_ga, 'z': loss_z, 'gvgg': loss_gvgg}
+        if self.hparams.lbvgg > 0:
+            loss_gvgg = self.VGGloss(torch.cat([self.imgXY] * 3, 1), torch.cat([self.oriY] * 3, 1))
+            loss_g += loss_gvgg * self.hparams.lbvgg
+
+        return {'sum': loss_g, 'l1': loss_l1, 'ga': loss_ga, 'z': loss_z}
 
     def backward_d(self):
         # ADV(XY)-
@@ -192,4 +197,4 @@ class GAN(BaseModel):
             self.log_helper.append(self.imgXY)
         ### STUPID
 
-# CUDA_VISIBLE_DEVICES=0,1 python train.py --jsn womac3 --prj 3D/test4ano/0/  --models descar4ano --netG dsnumcrel0a --netD bpatch_16 --split moaks
+#A CUDA_VISIBLE_DEVICES=0,1 python train.py --jsn womac3 --prj 3D/test4ano/0/  --models descar4ano --netG dsnumcrel0a --netD bpatch_16 --split moaks

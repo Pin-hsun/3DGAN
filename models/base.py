@@ -91,6 +91,9 @@ class VGGLoss(nn.Module):
         self.criterion = nn.L1Loss()
         self.weights = [1.0/32, 1.0/16, 1.0/8, 1.0/4, 1.0]
 
+        for param in self.vgg.parameters():
+            param.requires_grad = False
+
     def forward(self, x, y):
         x_vgg, y_vgg = self.vgg(x), self.vgg(y)
         loss = 0
@@ -123,7 +126,6 @@ class BaseModel(pl.LightningModule):
         # Define Loss Functions
         self.CELoss = CrossEntropyLoss()
         self.criterionL1 = nn.L1Loss()
-        self.VGGloss = VGGLoss().cuda()
         self.MSELoss = nn.MSELoss()
         if self.hparams.gan_mode == 'vanilla':
             self.criterionGAN = nn.BCEWithLogitsLoss()

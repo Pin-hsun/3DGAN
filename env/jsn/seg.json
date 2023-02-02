@@ -15,7 +15,7 @@
             "trd": 0,
             "gan_mode": "vanilla",
             "netG": "unet_128",
-            "norm": "instance",
+            "norm": "batch",
             "mc": false,
             "netD": "patch_16",
             "input_nc": 1,

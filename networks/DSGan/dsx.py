@@ -98,7 +98,11 @@ class Generator(nn.Module):
         self.c_dim = 0
 
         self.down0 = nn.Sequential(
-            conv_block(n_channels + self.c_dim, nf, activation=act),
+            #conv_block(n_channels + self.c_dim, nf, activation=act),
+            # dsx
+            nn.Conv2d(n_channels + self.c_dim, nf, kernel_size=3, padding=1, stride=2),
+            nn.BatchNorm2d(nf, momentum=0.01),
+            activation(),
             conv_block(nf, nf, activation=act)
         )
         self.down1 = nn.Sequential(
@@ -120,21 +124,37 @@ class Generator(nn.Module):
             conv_block(8 * nf, 8 * nf, activation=act),
         )
 
-        self.up3 = deconv2d_bn_block(8 * nf + 1, 4 * nf, activation=act)
+        # DSX
+        self.down4 = nn.Sequential(
+            max_pool,
+            conv_block(8 * nf, 16 * nf, activation=act),
+            nn.Dropout(p=dropout, inplace=False),
+            conv_block(16 * nf, 16 * nf, activation=act),
+        )
 
+        # DSX
+        self.up4 = deconv2d_bn_block(16 * nf + 1, 8 * nf, activation=act)
+        self.conv4 = nn.Sequential(
+            conv_block(8 * nf, 8 * nf, activation=act),  # 8
+            nn.Dropout(p=dropout, inplace=False),
+            conv_block(8 * nf, 8 * nf, activation=act),
+        )
+
+        self.up3 = deconv2d_bn_block(8 * nf, 4 * nf, activation=act)
         self.conv5 = nn.Sequential(
             conv_block(4 * nf, 4 * nf, activation=act),  # 8
             nn.Dropout(p=dropout, inplace=False),
             conv_block(4 * nf, 4 * nf, activation=act),
         )
-        self.up2 = deconv2d_bn_block(4 * nf + 1, 2 * nf, activation=act)
+
+        self.up2 = deconv2d_bn_block(4 * nf, 2 * nf, activation=act)
         self.conv6 = nn.Sequential(
             conv_block(2 * nf, 2 * nf, activation=act),
             nn.Dropout(p=dropout, inplace=False),
             conv_block(2 * nf, 2 * nf, activation=act),
         )
 
-        self.up1 = deconv2d_bn_block(2 * nf + 1, nf, activation=act)
+        self.up1 = deconv2d_bn_block(2 * nf, nf, activation=act)
 
         final_layer = get_activation(final)
 
@@ -166,24 +186,26 @@ class Generator(nn.Module):
         x0 = self.down0(x)
         x1 = self.down1(x0)
         x2 = self.down2(x1)   # Dropouta
-        x30 = self.down3(x2)   # Dropout
+        x3 = self.down3(x2)   # Dropout
+        x40 = self.down4(x3)  # Dropout
 
         # injection
 
         # tiled_a = a * tile_like(torch.ones((x3.shape[0], 1)), x3).type_as(x3)
-        Z = x30.shape[0] // a.shape[0]  # thickness = B*Z / B
+        Z = x40.shape[0] // a.shape[0]  # thickness = B*Z / B
+        tiled_a = tile_like(a.unsqueeze(1).repeat(1, Z).view(-1, 1), x40).type_as(x40)
 
-        tiled_a = tile_like(a.unsqueeze(1).repeat(1, Z).view(-1, 1), x30).type_as(x30)
-        x3 = torch.cat([x30, tiled_a], 1)
+        x4 = torch.cat([x40, tiled_a], 1)
+        xu4 = self.up4(x4)
+        x3 = self.conv4(xu4)   # Dropout
 
         xu3 = self.up3(x3)
-        #cat3 = torch.cat([xu3, x2], 1)
         x5 = self.conv5(xu3)   # Dropout
 
         # injection
         #tiled_a = a * tile_like(torch.ones((x5.shape[0], 1)), x5).type_as(x5)
-        tiled_a = tile_like(a.unsqueeze(1).repeat(1, Z).view(-1, 1), x5).type_as(x5)
-        x5 = torch.cat([x5, tiled_a], 1)
+        #tiled_a = tile_like(a.unsqueeze(1).repeat(1, Z).view(-1, 1), x5).type_as(x5)
+        #x5 = torch.cat([x5, tiled_a], 1)
 
         xu2 = self.up2(x5)
         #cat2 = torch.cat([xu2, x1], 1)
@@ -191,14 +213,15 @@ class Generator(nn.Module):
 
         # injection
         #tiled_a = a * tile_like(torch.ones((x6.shape[0], 1)), x6).type_as(x6)
-        tiled_a = tile_like(a.unsqueeze(1).repeat(1, Z).view(-1, 1), x6).type_as(x6)
-        x6 = torch.cat([x6, tiled_a], 1)
+        #tiled_a = tile_like(a.unsqueeze(1).repeat(1, Z).view(-1, 1), x6).type_as(x6)
+        #x6 = torch.cat([x6, tiled_a], 1)
 
         xu1 = self.up1(x6)
+        xu1 = nn.Upsample(scale_factor=2)(xu1)
         x70 = self.conv7_k(xu1)
         x71 = self.conv7_g(xu1)
 
-        return {'out0': x70, 'out1': x71, 'z': x30}
+        return {'out0': x70, 'out1': x71, 'z': x40}
 
 
 if __name__ == '__main__':

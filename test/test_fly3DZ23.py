@@ -34,6 +34,8 @@ def sum_all(source):
 
 
 def make_rotation_3d(stepx, stepy):
+    stepx = 2
+    stepy = 0
     # get model
     import networks, models
     sys.modules['models'] = networks
@@ -77,6 +79,7 @@ def make_rotation_3d(stepx, stepy):
 
             if len(xp) == 2:
                 out = net(torch.cat((slices[0], slices[1]), 1))#, a=None)
+                out = [out['out0'], out['out1']]
                 out = [y.detach().cpu() for y in out]
             else:
                 out = net(slices[0])#, a=None)
@@ -90,6 +93,7 @@ def make_rotation_3d(stepx, stepy):
             all[j] = torch.cat(all[j], 0)  #(x, 1, z, y)
             all[j] = all[j].permute(2, 1, 0, 3)
 
+        for j in range(len(all)):
             all[j] = transforms.functional.rotate(all[j], angle=-angle,  #(z, 1, x, y)
                                                   interpolation=torchvision.transforms.functional.InterpolationMode.BILINEAR,
                                                   fill=-1)
@@ -131,7 +135,7 @@ if __name__ == '__main__':
     parser.add_argument('--prj', type=str, default='wnwp3d/cyc4/GdenuF0Bmc', help='environment_to_use')
     parser.add_argument('--netg', default='netGXY', type=str)
     parser.add_argument('--env', default=None, type=str)
-    parser.add_argument('--epoch', default=100, type=int)
+    parser.add_argument('--epoch', default=200, type=int)
     parser.add_argument('--direction', default='xyzft0_xyzsb', type=str)
     parser.add_argument('--trd', default=0, type=int)
     parser.add_argument('--destination', default='/media/ghc/GHc_data2/N3D/F0B/', type=str)
@@ -153,14 +157,14 @@ if __name__ == '__main__':
         args.destination = '/media/ghc/GHc_data2/N3D/B/'
         args.trd = 0
     elif 1:
-        args.prj = 'wnwp3d/cyc/GdenuF0OmcXmc'
-        args.direction = 'xyzori'
+        args.prj = 'cyc4/Check013023b'
+        args.direction = 'xyzft0_xyzori'
         args.destination = '/media/ghc/GHc_data2/N3D/F0OmcX/'
         args.trd = 0
 
     #args.destination = '/home/ubuntu/Data/N3D/F0OTrd2k'
 
-    make_rotation_3d(stepx=2, stepy=0)
+    #make_rotation_3d(stepx=2, stepy=0)
 
 # USAGE
 # CUDA_VISIBLE_DEVICES=0 python test.py --jsn default --dataset pain --nalpha 0 100 2  --prj VryAtt

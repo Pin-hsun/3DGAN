@@ -8,7 +8,7 @@ import pytorch_lightning as pl
 from utils.metrics_segmentation import SegmentationCrossEntropyLoss
 from utils.metrics_classification import CrossEntropyLoss, GetAUC
 from utils.data_utils import *
-from models.base import BaseModel, combine
+from models.base import BaseModel, combine, VGGLoss
 import pandas as pd
 from models.helper_oai import OaiSubjects, classify_easy_3d, swap_by_labels
 from models.helper import reshape_3d, tile_like
@@ -29,6 +29,9 @@ class GAN(BaseModel):
 
         self.oai = OaiSubjects(self.hparams.dataset)
 
+        if hparams.lbvgg > 0:
+            self.VGGloss = VGGLoss().cuda()
+
         # Finally, initialize the optimizers and scheduler
         self.init_optimizer_scheduler()
 
@@ -38,7 +41,7 @@ class GAN(BaseModel):
         parser.add_argument("--lbx", dest='lbx', type=float, default=1)
         parser.add_argument("--dc0", dest='dc0', type=float, default=1)
         parser.add_argument("--fix", dest='fix', action='store_true', default=False)
-        parser.add_argument("--lvbgg", dest='lbvgg', type=float, default=1)
+        parser.add_argument("--lbvgg", dest='lbvgg', type=float, default=1)
         return parent_parser
 
     @staticmethod
@@ -46,13 +49,13 @@ class GAN(BaseModel):
         oriX = img[0]
 
         print(a)
-        imgXX, _ = net_g(oriX, a=torch.FloatTensor([0]))
-        imgXX = nn.Sigmoid()(imgXX)  # mask
+        #imgXX, _ = net_g(oriX, a=torch.FloatTensor([0]))
+        #imgXX = nn.Sigmoid()(imgXX)  # mask
 
-        imgXY, _ = net_g(oriX, a=torch.FloatTensor([a]))
-        imgXY = nn.Sigmoid()(imgXY)  # mask
+        imgXY = net_g(oriX, a=torch.FloatTensor([a]))
+        imgXY = nn.Sigmoid()(imgXY['out0'])  # mask
 
-        imgXX = combine(imgXX, oriX, method='mul')
+        #imgXX = combine(imgXX, oriX, method='mul')
         imgXY = combine(imgXY, oriX, method='mul')
 
         return imgXY
@@ -96,13 +99,14 @@ class GAN(BaseModel):
 
         loss_ga = axy# * 0.5 + axx * 0.5
 
-        loss_gvgg = self.VGGloss(torch.cat([self.imgXY] * 3, 1), torch.cat([self.oriY] * 3, 1))
-
-        loss_g = loss_ga + loss_l1 * self.hparams.lamb + loss_gvgg * self.hparams.lbvgg
+        loss_g = loss_ga + loss_l1 * self.hparams.lamb
         if not self.hparams.fix:
             loss_g += loss_l1x * self.hparams.lbx
+        if self.hparams.lbvgg > 0:
+            loss_gvgg = self.VGGloss(torch.cat([self.imgXY] * 3, 1), torch.cat([self.oriY] * 3, 1))
+            loss_g += loss_gvgg * self.hparams.lbvgg
 
-        return {'sum': loss_g, 'l1': loss_l1, 'ga': loss_ga, 'gvgg': loss_gvgg}
+        return {'sum': loss_g, 'l1': loss_l1, 'ga': loss_ga}#, 'gvgg': loss_gvgg}
 
     def backward_d(self):
         # ADV(XY)-

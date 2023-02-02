@@ -57,15 +57,21 @@ class GAN(BaseModel):
         self.oriYw = img[2]
         self.oriYo = img[3]
 
-        self.imgXYw, self.imgXYo = self.net_gXY(torch.cat([img[0], img[1]], 1), a=None)
-        self.imgYXw, self.imgYXo = self.net_gYX(torch.cat([img[2], img[3]], 1), a=None)
+        outXY = self.net_gXY(torch.cat([img[0], img[1]], 1), a=None)
+        outYX = self.net_gYX(torch.cat([img[2], img[3]], 1), a=None)
+        self.imgXYw, self.imgXYo = outXY['out0'], outXY['out1']
+        self.imgYXw, self.imgYXo = outYX['out0'], outYX['out1']
 
-        self.imgXYXw, self.imgXYXo = self.net_gYX(torch.cat([self.imgXYw, self.imgXYo], 1), a=None)
-        self.imgYXYw, self.imgYXYo = self.net_gXY(torch.cat([self.imgYXw, self.imgYXo], 1), a=None)
+        outXYX = self.net_gYX(torch.cat([self.imgXYw, self.imgXYo], 1), a=None)
+        outYXY = self.net_gXY(torch.cat([self.imgYXw, self.imgYXo], 1), a=None)
+        self.imgXYXw, self.imgXYXo = outXYX['out0'], outXYX['out1']
+        self.imgYXYw, self.imgYXYo = outYXY['out0'], outYXY['out1']
 
         if self.hparams.lambI > 0:
-            self.idt_Xw, self.idt_Xo = self.net_gYX(torch.cat([img[0], img[1]], 1), a=None)
-            self.idt_Yw, self.idt_Yo, = self.net_gXY(torch.cat([img[2], img[3]], 1), a=None)
+            outidtX = self.net_gYX(torch.cat([img[0], img[1]], 1), a=None)
+            outidtY = self.net_gXY(torch.cat([img[2], img[3]], 1), a=None)
+            self.idt_Xw, self.idt_Xo = outidtX['out0'], outidtX['out1']
+            self.idt_Yw, self.idt_Yo = outidtY['out0'], outidtY['out1']
 
     def backward_g(self):
         loss_g = 0
@@ -124,3 +130,4 @@ class GAN(BaseModel):
 # USAGE
 # CUDA_VISIBLE_DEVICES=0 python train.py --jsn wnwp3d --prj wnwp3d/cyc4/GdenuWBmcOct13 --mc --models cyc4 -b 16 --netG descarnoumc --direction zyweak_zysb%xyweak_xysb
 # CUDA_VISIBLE_DEVICES=0,1,2,3 python train.py --jsn 40x2fly10 --prj cyc3/40xA --models cyc4 -b 16 --direction 40ft0_40ori2%xyft0_xyori --dataset 40xhan --input_nc 2 --trd 500
+# CUDA_VISIBLE_DEVICES=0,1 python train.py --jsn wnwp3d --prj cyc4/Check2023 --models cyc4 -b 16 --direction zyft0_zyori%xyft0_xyori --trd 2000 --nm 11

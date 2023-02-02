@@ -16,13 +16,10 @@ class GAN(BaseModel):
         BaseModel.__init__(self, hparams, train_loader, test_loader, checkpoints)
 
         # set networks
-        self.hparams.output_nc = 7
-        self.segnet, _ = self.set_networks()
-
-        #self.segnet = torch.load('/media/ExtHDD01/logs/Fly0Bseg/seg0/checkpoints/segnet_model_epoch_140.pth')
-        #self.segnet.train()
+        self.hparams.output_nc = 2
+        self.encoder, _ = self.set_networks()
         # update model names
-        self.model_names = {'segnet': 'segnet'}
+        self.model_names = {'encoder': 'encoder'}
 
         self.init_optimizer_scheduler()
 
@@ -37,11 +34,11 @@ class GAN(BaseModel):
         return parent_parser
 
     def configure_optimizers(self):
-        seg_parameters = []
+        parameters = []
         for g in self.model_names.keys():
-            seg_parameters = seg_parameters + list(getattr(self, g).parameters())
+            parameters = parameters + list(getattr(self, g).parameters())
 
-        self.optimizer = optim.Adam(seg_parameters, lr=self.hparams.lr, betas=(self.hparams.beta1, 0.999))
+        self.optimizer = optim.Adam(parameters, lr=self.hparams.lr, betas=(self.hparams.beta1, 0.999))
         # not using pl scheduler for now....
         return self.optimizer
 
@@ -55,12 +52,12 @@ class GAN(BaseModel):
             batch['img'] = reshape_3d(batch['img'])
 
         img = batch['img']
-        self.ori = img[1]
-        self.ori = self.ori / self.ori.max()
 
-        self.mask = img[0]
-        self.mask = self.mask.type(torch.LongTensor).to(self.ori.device)
-        self.oriseg = self.segnet(self.ori)[0]
+        self.imgX = img[0]
+        self.imgY = img[1]
+
+        self.imgXz = self.eocoder(self.imgX, a=None)['z']
+        self.imgYz = self.eocoder(self.imgY, a=None)['z']
 
     def training_step(self, batch, batch_idx):
         self.batch_idx = batch_idx
@@ -99,31 +96,8 @@ class GAN(BaseModel):
         self.all_label = []
         self.all_out = []
 
-    def validation_epoch_end(self, x):
-        seg = torch.cat(self.all_out, 0)
-        mask = torch.cat(self.all_label, 0)
-
-        del self.all_out
-        del self.all_label
-
-        seg = torch.argmax(seg, 1).view(-1)
-        mask = mask.view(-1)
-        dice = []
-        for i in range(self.hparams.output_nc):
-            tp = ((mask == i) & (seg == i)).sum().item()
-            uni = (mask == i).sum().item() + (seg == i).sum().item()
-            dice.append(2 * tp / (uni + 0.001))
-        print(dice)
-
-        #for i in range(len(auc)):
-        #    self.log('auc' + str(i), auc[i], on_step=False, on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
-        self.all_label = []
-        self.all_out = []
-
-        return 0#metrics
 
 
 
 
-#CUDA_VISIBLE_DEVICES=0 python train.py --jsn seg --prj segmentation --models segmentation --split a
-#CUDA_VISIBLE_DEVICES=0 python train.py --jsn seg --prj seg0 --models segmentation --split a --dataset Fly0Bseg --directions mask_ori
+#CUDA_VISIBLE_DEVICES=0 python train.py --jsn seg --prj segmentation --models segmentation --split a --norm instance
