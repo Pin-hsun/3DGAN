@@ -93,3 +93,5 @@ class GAN(BaseModel):
 # CUDA_VISIBLE_DEVICES=1 python train.py --jsn wnwp3d --prj wnwp3d/cyc/GdenuOmc --mc --models cyc -b 16 --netG descarnoumc  --direction zyori%xyori --dataset Fly0B --input_nc 1
 
 # CUDA_VISIBLE_DEVICES=0,1,2,3 python train.py --jsn 40x2fly10 --prj cyc/test1 --models cyc -b 16 --direction 40xdown2%xyori --dataset 40x --input_nc 1 --trd 500
+
+# CUDA_VISIBLE_DEVICES=0,1 python train.py --jsn 40x2fly10_2 --prj csb/0 --models cyc -b 16 --direction xysb_xyweak --dataset Fly0B --input_nc 1 --trd 0 --netG dsmc --nm 11 --output_nc 1 --lamb 0 --lambI 0
