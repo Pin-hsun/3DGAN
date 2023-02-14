@@ -33,6 +33,22 @@ def sum_all(source):
     tiff.imwrite(source + 'var.tif', np.var(tifs, 3))
 
 
+def calculate_fft():
+    root = os.path.join('/home/ubuntu/Data/Dataset/paired_images', args.dataset)
+    from dataloader.data_multi import PairedDataTif
+    test_set = PairedDataTif(root=root,
+                             directions=args.direction)
+    x = test_set.__getitem__(0)['img']
+
+
+def Global_Filter(x):
+    x = x.permute(0, 2, 3, 1).contiguous()
+    x = torch.fft.fft(x, dim=3, norm='ortho')
+    out = torch.unsqueeze(x[:, :, :, 0], -1).permute(0, 3, 1, 2).contiguous()
+    out = out.type(torch.cuda.FloatTensor)
+    return out
+
+
 def make_rotation_3d(stepx, stepy):
     stepx = 2
     stepy = 0
@@ -41,29 +57,26 @@ def make_rotation_3d(stepx, stepy):
     sys.modules['models'] = networks
     #net = torch.load('/media/ExtHDD01/logs/Fly0B/wnwp3d/cyc/GdenuBmc/checkpoints/netGXY_model_epoch_100.pth')
     #net = torch.load('submodels/1.pth').cuda()  #  mysterious Resnet model with ResnetAdaILNBlock (ugatit?)
-    args.epoch = 40
-    net = torch.load(os.path.join(os.environ.get('LOGS'), args.dataset, args.prj, 'checkpoints',
+
+    args.epoch = 20
+    logs = '/home/ubuntu/Data/logs' #os.environ.get('LOGS')
+    root = os.path.join('/home/ubuntu/Data/Dataset/paired_images', args.dataset)
+
+    net = torch.load(os.path.join(logs, args.dataset, args.prj, 'checkpoints',
                                   args.netg + '_model_epoch_' + str(args.epoch) + '.pth'),
                      map_location=torch.device('cpu')).cuda()
 
     # get a 3D volume
     sys.modules['models'] = models
     from dataloader.data_multi import PairedDataTif
-    test_set = PairedDataTif(root=os.path.join(os.environ.get('DATASET'), args.dataset),
+    test_set = PairedDataTif(root=root,
                              directions=args.direction, permute=(0, 1, 2), trd=args.trd,
                              crop=[1890-1792, 1890, 512 * stepx, 512 * stepx + 1024, 512 * stepy, 512 * stepy + 1024])
                              #crop=[1890-1792, 1890, 1024, 2048, 0, 1024])
     x = test_set.__getitem__(0)['img']
 
     for angle in [0]:#list(range(0, 331, 30)):
-        # rotation
-        print('angle:  ' + str(angle))
-        if angle > 0 :
-            xp = [transforms.functional.rotate(y, angle=angle,  #(z, 1, x, y)
-                                               interpolation=torchvision.transforms.functional.InterpolationMode.BILINEAR,
-                                               fill=-1) for y in x]
-        else:
-            xp = [y for y in x]
+        xp = [y for y in x]
 
         #  testing over slices
         all = []
@@ -77,15 +90,12 @@ def make_rotation_3d(stepx, stepy):
             for p in range(len(xp)):
                 slices.append(xp[p][:, :, i, :].unsqueeze(0).cuda())
 
-            if len(xp) == 2:
-                out = net(torch.cat((slices[0], slices[1]), 1))#, a=None)
-                out = [out['out0'], out['out1']]
-                out = [y.detach().cpu() for y in out]
-            else:
-                out = net(slices[0])#, a=None)
-                out = [y.detach().cpu() for y in out]
+            fft = Global_Filter(torch.cat([slices[0], slices[1], slices[2], slices[3]], 1))
+            out = net(torch.cat((fft, slices[4]), 1))  # , a=None)
+            out = [out['out0'], out['out1']]
+            out = [y.detach().cpu() for y in out]
 
-            for p in range(len(xp)):
+            for p in range(len(out)):
                 all[p].append(out[p])
         del xp
 
@@ -94,9 +104,10 @@ def make_rotation_3d(stepx, stepy):
             all[j] = all[j].permute(2, 1, 0, 3)
 
         for j in range(len(all)):
-            all[j] = transforms.functional.rotate(all[j], angle=-angle,  #(z, 1, x, y)
-                                                  interpolation=torchvision.transforms.functional.InterpolationMode.BILINEAR,
-                                                  fill=-1)
+            if angle != 0:
+                all[j] = transforms.functional.rotate(all[j], angle=-angle,  #(z, 1, x, y)
+                                                      interpolation=torchvision.transforms.functional.InterpolationMode.BILINEAR,
+                                                      fill=-1)
             all[j] = all[j].numpy()[:, 0, ::]
             all[j] = all[j][:, 256:-256, 256:-256].astype(np.float16)
 
@@ -141,6 +152,7 @@ if __name__ == '__main__':
     parser.add_argument('--destination', default='/media/ghc/GHc_data2/N3D/F0B/', type=str)
     parser.add_argument('--mode', type=str, default='dummy')
     parser.add_argument('--port', type=str, default='dummy')
+    parser.add_argument('--host', type=str, default='dummy')
     args = parser.parse_args()
 
     #args.env = 'a6k'

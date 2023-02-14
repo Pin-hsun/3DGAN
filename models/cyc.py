@@ -40,6 +40,9 @@ class GAN(BaseModel):
         self.oriX = img[0]
         self.oriY = img[1]
 
+        #self.oriY = (self.oriY > -0.9) / 1
+        #self.oriY = 2 * self.oriY - 1
+
         self.imgXY = self.net_gXY(self.oriX)[0]
         self.imgYX = self.net_gYX(self.oriY)[0]
 

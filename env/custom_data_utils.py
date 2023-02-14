@@ -10,14 +10,20 @@ def customize_data_split(args):
         length_data = len(sorted(glob.glob(os.path.join(os.environ.get('DATASET') + args.dataset + folder, args.direction.split('_')[0], '*'))))
         #print(os.path.join(os.environ.get('DATASET') + args.dataset + folder, args.direction[0], '*'))
 
-        if split in ['a', 'b']:
-            if split == 'a':
+        if split in ['x', 'y', 'small', 'all']:
+            if split == 'x':
                 train_index = range(0, length_data // 10 * 7)
                 test_index = range(length_data // 10 * 7, length_data)
-            if split == 'b':
+            if split == 'y':
                 train_index = range(length_data // 10 * 3, length_data)
                 test_index = range(0, length_data // 10 * 3)
-        else:  # THIS IS WRONG FOR LOAD3D!
+            if split == 'small':
+                train_index = range(0, length_data // 10)
+                test_index = range(length_data // 10, length_data)
+            if split == 'all':
+                train_index = range(0, length_data)
+                test_index = range(0, 1)
+        else:  # THIS IS WRONG FOR LOAD3D ???
             if dataset == 'womac3':
                 if split == 'moaks':
                     df = pd.read_csv('env/csv/womac3.csv')
@@ -29,10 +35,6 @@ def customize_data_split(args):
                 elif split == 'b':
                     train_index = range(0, 497)
                     test_index = range(497, 710)
-                elif split == 'small':
-                    train_index = range(690, 710)
-                    test_index = range(0, 20)
-
             if dataset == 'oaiseg':
                 if split == 'a':
                     if args.load3d:
