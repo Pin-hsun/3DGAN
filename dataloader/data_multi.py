@@ -136,8 +136,12 @@ class PairedData(data.Dataset):
 
         # get name of images from the first folder
         self.images = sorted([x.split('/')[-1] for x in glob.glob(self.all_path[0] + '/*')])
+
         if self.opt.resize == 0:
-            self.resize = np.array(Image.open(join(self.all_path[0], self.images[0]))).shape[1]
+            try:
+                self.resize = tiff.imread(join(self.all_path[0], self.images[0])).shape[1]
+            except:
+                self.resize = np.array(Image.open(join(self.all_path[0], self.images[0]))).shape[1]
         else:
             self.resize = self.opt.resize
 
@@ -184,7 +188,10 @@ class PairedData(data.Dataset):
         return outputs
 
     def load_img(self, path):
-        x = Image.open(path)
+        try:
+            x = tiff.imread(path)
+        except:
+            x = Image.open(path)
         x = np.array(x).astype(np.float32)
 
         if self.opt.trd > 0:

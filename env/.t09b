@@ -1,0 +1,7 @@
+# Paths
+export LOGS='/media/ExtHDD01/logs/'
+export DATASET='/home/ghc/Dataset/paired_images/'
+
+# Submodels
+export model_t2d='submodels/netG_TSE_DESS_up256patchgan.pth'
+export model_seg='submodels/SegScale.pth'

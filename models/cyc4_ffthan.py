@@ -162,4 +162,4 @@ class GAN(BaseModel):
 
 # USAGE
 
-# CUDA_VISIBLE_DEVICES=0,1,2,3 python train.py --jsn wnwp3d --prj cyc4fft/0 --models cyc4_fft0 -b 16 --direction zyf0_zyf1_zyf2_zyf3_zyori%xyf0_xyf1_xyf2_xyf3_xyzori --nm 11 --netG descarnoumc --env a6k --trd 2000
+# CUDA_VISIBLE_DEVICES=0,1,2,3 python train.py --jsn wnwp3d --prj cyc4fft/0 --models cyc4_ffthan -b 16 --direction zyf0_zyf1_zyf2_zyf3_zyori%xyf0_xyf1_xyf2_xyf3_xyzori --nm 11 --netG descarnoumc --env a6k --trd 2000

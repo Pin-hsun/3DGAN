@@ -33,31 +33,50 @@ def sum_all(source):
     tiff.imwrite(source + 'var.tif', np.var(tifs, 3))
 
 
+def calculate_fft():
+    root = os.path.join('/home/ubuntu/Data/Dataset/paired_images', args.dataset)
+    from dataloader.data_multi import PairedDataTif
+    test_set = PairedDataTif(root=root,
+                             directions=args.direction)
+    x = test_set.__getitem__(0)['img']
+
+
+def Global_Filter(x):
+    x = x.permute(0, 2, 3, 1).contiguous()
+    x = torch.fft.fft(x, dim=3, norm='ortho')
+    out = torch.unsqueeze(x[:, :, :, 0], -1).permute(0, 3, 1, 2).contiguous()
+    out = out.type(torch.cuda.FloatTensor)
+    return out
+
+
 def make_rotation_3d(stepx, stepy):
+    stepx = 2
+    stepy = 0
     # get model
     import networks, models
     sys.modules['models'] = networks
     #net = torch.load('/media/ExtHDD01/logs/Fly0B/wnwp3d/cyc/GdenuBmc/checkpoints/netGXY_model_epoch_100.pth')
     #net = torch.load('submodels/1.pth').cuda()  #  mysterious Resnet model with ResnetAdaILNBlock (ugatit?)
 
-    net = torch.load(os.path.join(os.environ.get('LOGS'), args.dataset, args.prj, 'checkpoints',
+    logs = os.environ.get('LOGS')
+    root = os.path.join(os.environ.get('DATASET'), args.dataset)
+
+    net = torch.load(os.path.join(logs, args.dataset, args.prj, 'checkpoints',
                                   args.netg + '_model_epoch_' + str(args.epoch) + '.pth'),
                      map_location=torch.device('cpu')).cuda()
 
     # get a 3D volume
     sys.modules['models'] = models
     from dataloader.data_multi import PairedDataTif
-    test_set = PairedDataTif(root=os.path.join(os.environ.get('DATASET'), args.dataset),
+    test_set = PairedDataTif(root=root,
                              directions=args.direction, permute=(0, 1, 2), trd=args.trd,
-                             crop=[1890-1792, 1890, 512 * stepx, 512 * stepx + 1024, 512 * stepy, 512 * stepy + 1024])
-                             #crop=[1890-1792, 1890, 1024, 2048, 0, 1024])
+                             crop=None)#[1890-1792, 1890, 512 * stepx, 512 * stepx + 1024, 512 * stepy, 512 * stepy + 1024])
+
     x = test_set.__getitem__(0)['img']
 
-    for angle in [0]:#list(range(0, 331, 30)):
-        # rotation
-        print('angle:  ' + str(angle))
-        if angle > 0 :
-            xp = [transforms.functional.rotate(y, angle=angle,  #(z, 1, x, y)
+    for angle in args.angle_range:
+        if angle > 0:
+            xp = [transforms.functional.rotate(y, angle=angle,  # (z, 1, x, y)
                                                interpolation=torchvision.transforms.functional.InterpolationMode.BILINEAR,
                                                fill=-1) for y in x]
         else:
@@ -75,14 +94,12 @@ def make_rotation_3d(stepx, stepy):
             for p in range(len(xp)):
                 slices.append(xp[p][:, :, i, :].unsqueeze(0).cuda())
 
-            if len(xp) == 2:
-                out = net(torch.cat((slices[0], slices[1]), 1))#, a=None)
-                out = [y.detach().cpu() for y in out]
-            else:
-                out = net(slices[0])#, a=None)
-                out = [y.detach().cpu() for y in out]
+            #fft = Global_Filter(torch.cat([slices[0], slices[1], slices[2], slices[3]], 1))
+            out = net(torch.cat((slices[0], slices[1]), 1))  # , a=None)
+            out = [out['out0'], out['out1']]
+            out = [y.detach().cpu() for y in out]
 
-            for p in range(len(xp)):
+            for p in range(len(out)):
                 all[p].append(out[p])
         del xp
 
@@ -90,13 +107,15 @@ def make_rotation_3d(stepx, stepy):
             all[j] = torch.cat(all[j], 0)  #(x, 1, z, y)
             all[j] = all[j].permute(2, 1, 0, 3)
 
-            all[j] = transforms.functional.rotate(all[j], angle=-angle,  #(z, 1, x, y)
-                                                  interpolation=torchvision.transforms.functional.InterpolationMode.BILINEAR,
-                                                  fill=-1)
+        for j in range(len(all)):
+            if angle != 0:
+                all[j] = transforms.functional.rotate(all[j], angle=-angle,  #(z, 1, x, y)
+                                                      interpolation=torchvision.transforms.functional.InterpolationMode.BILINEAR,
+                                                      fill=-1)
             all[j] = all[j].numpy()[:, 0, ::]
             all[j] = all[j][:, 256:-256, 256:-256].astype(np.float16)
 
-        destination = args.destination + str(stepx) + str(stepy) + '/'
+        destination = args.destination
         dirs = args.direction.split('_')
 
         for j in range(len(all)):
@@ -131,15 +150,38 @@ if __name__ == '__main__':
     parser.add_argument('--prj', type=str, default='wnwp3d/cyc4/GdenuF0Bmc', help='environment_to_use')
     parser.add_argument('--netg', default='netGXY', type=str)
     parser.add_argument('--env', default=None, type=str)
-    parser.add_argument('--epoch', default=100, type=int)
+    parser.add_argument('--epoch', default=200, type=int)
     parser.add_argument('--direction', default='xyzft0_xyzsb', type=str)
     parser.add_argument('--trd', default=0, type=int)
     parser.add_argument('--destination', default='/media/ghc/GHc_data2/N3D/F0B/', type=str)
     parser.add_argument('--mode', type=str, default='dummy')
     parser.add_argument('--port', type=str, default='dummy')
+    parser.add_argument('--host', type=str, default='dummy')
     args = parser.parse_args()
 
     #args.env = 'a6k'
+
+    if 0:
+        args.prj = 'wnwp3d/cyc/GdenuBmc'
+        args.direction = 'xyzsb'
+        args.destination = '/media/ghc/GHc_data2/N3D/B/'
+        args.trd = 0
+    elif 0:
+        args.prj = 'cyc4/z4'
+        args.direction = 'xyzft0x4_xyzorix4'
+        args.destination = '/home/ubuntu/Data/N3D/z4/'
+        args.trd = 2000
+        args.epoch = 80
+        args.env = 'a6k'
+        args.angle_range = list(range(30, 331, 30))
+    elif 1:
+        args.prj = 'cyc4/oo'
+        args.direction = 'xyzori_xyzori'
+        args.destination = '/home/ubuntu/Data/N3D/z4/'
+        args.trd = 0
+        args.epoch = 100
+        args.env = 't09b'
+        args.angle_range = list(range(0, 1, 30))
 
     # environment file
     if args.env is not None:
@@ -147,20 +189,7 @@ if __name__ == '__main__':
     else:
         load_dotenv('env/.t09')
 
-    if 0:
-        args.prj = 'wnwp3d/cyc/GdenuBmc'
-        args.direction = 'xyzsb'
-        args.destination = '/media/ghc/GHc_data2/N3D/B/'
-        args.trd = 0
-    elif 1:
-        args.prj = 'wnwp3d/cyc/GdenuF0OmcXmc'
-        args.direction = 'xyzori'
-        args.destination = '/media/ghc/GHc_data2/N3D/F0OmcX/'
-        args.trd = 0
-
-    #args.destination = '/home/ubuntu/Data/N3D/F0OTrd2k'
-
-    make_rotation_3d(stepx=2, stepy=0)
+    #make_rotation_3d(stepx=2, stepy=0)
 
 # USAGE
 # CUDA_VISIBLE_DEVICES=0 python test.py --jsn default --dataset pain --nalpha 0 100 2  --prj VryAtt
