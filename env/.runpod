@@ -1,0 +1,7 @@
+# Paths
+export LOGS='/workspace/logs/'
+export DATASET='/workspace/RunpodGHC/Dataset/'
+
+# Submodels
+export model_t2d='submodels/netG_TSE_DESS_up256patchgan.pth'
+export model_seg='submodels/SegScale.pth'

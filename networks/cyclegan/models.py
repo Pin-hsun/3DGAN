@@ -93,20 +93,31 @@ class GeneratorResNet(nn.Module):
 
 
 class Discriminator(nn.Module):
-    def __init__(self, input_shape, patch):
+    def __init__(self, input_shape, patch, conv3D=False):
         super(Discriminator, self).__init__()
         assert patch in [4, 8, 16]
         print('Use ' + str(patch) + ' patch discriminator')
         channels, height, width = input_shape
+
+        if conv3D:
+            conv = nn.Conv3d
+            InstanceNorm = nn.InstanceNorm3d
+            # ZeroPad = nn.ZeroPad3d
+            ConstantPad = nn.ConstantPad3d
+        else:
+            conv = nn.Conv2d
+            InstanceNorm = nn.InstanceNorm2d
+            ZeroPad = nn.ZeroPad2d
 
         # Calculate output shape of image discriminator (PatchGAN)
         # this means no shit
 
         def discriminator_block(in_filters, out_filters, normalize=True):
             """Returns downsampling layers of each discriminator block"""
-            layers = [nn.Conv2d(in_filters, out_filters, 4, stride=2, padding=1)]
+
+            layers = [conv(in_filters, out_filters, 4, stride=2, padding=1)]
             if normalize:
-                layers.append(nn.InstanceNorm2d(out_filters))
+                layers.append(InstanceNorm(out_filters))
             layers.append(nn.LeakyReLU(0.2, inplace=True))
             return layers
 
@@ -121,11 +132,14 @@ class Discriminator(nn.Module):
 
             if patch == 4:
                 layers = layers + [*discriminator_block(256, 256)]
-
-            layers = layers + [*discriminator_block(256, 512),
-                    nn.ZeroPad2d((1, 0, 1, 0)),
-                    nn.Conv2d(512, 1, 4, padding=1)]
-
+            if conv3D:
+                layers = layers + [*discriminator_block(256, 512),
+                        ConstantPad((1, 0, 1, 0, 1, 0), 0),
+                        conv(512, 1, 4, padding=1)]
+            else:
+                layers = layers + [*discriminator_block(256, 512),
+                        ZeroPad((1, 0, 1, 0)),
+                        conv(512, 1, 4, padding=1)]
             self.model = nn.Sequential(*layers)
         else:
             self.model = nn.Sequential(

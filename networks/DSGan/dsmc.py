@@ -176,7 +176,7 @@ class Generator(nn.Module):
         #else:
         x71 = self.conv7_g(xu1)
 
-        return x70, x71
+        return {'out0': x70, 'out1': x71}
 
 
 if __name__ == '__main__':

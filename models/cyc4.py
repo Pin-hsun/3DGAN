@@ -48,6 +48,9 @@ class GAN(BaseModel):
         self.oriXw = img[0]
         self.oriXo = img[1]
 
+        #print((self.oriXw.min(), self.oriXw.max()))
+        #print((self.oriXo.min(), self.oriXo.max()))
+
         if self.hparams.downZ > 0:
             self.oriXw = self.oriXw[:, :, ::self.hparams.downZ, :]
             self.oriXo = self.oriXo[:, :, ::self.hparams.downZ, :]

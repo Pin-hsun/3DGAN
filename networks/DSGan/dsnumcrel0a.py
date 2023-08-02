@@ -85,16 +85,15 @@ class Generator(nn.Module):
     def __init__(self, n_channels=1, out_channels=1, nf=32, batch_norm=True, activation=ACTIVATION, final='tanh', mc=False):
         super(Generator, self).__init__()
 
-        conv_block = conv2d_bn_block if batch_norm else conv2d_block
-
-        max_pool = nn.MaxPool2d(2)
-        act = activation
-
         if mc:
             dropout = 0.5
         else:
             dropout = 0.0
 
+        conv_block = conv2d_bn_block if batch_norm else conv2d_block
+
+        max_pool = nn.MaxPool2d(2)
+        act = activation
         self.c_dim = 0
 
         self.down0 = nn.Sequential(
@@ -150,47 +149,32 @@ class Generator(nn.Module):
         #    self.conv7_k[-1] = self.conv7_k[-1][:-1]
         #    self.conv7_g[-1] = self.conv7_g[-1][:-1]
 
-    def forward(self, xori, a=None):
-        """
-        concat in all three layers
-        """
-        x = 1 * xori
-        # c: (B, C)
-        self.c_dim = 0
-        if self.c_dim > 0:
-            c = a
-            c1 = c.view(c.size(0), c.size(1), 1, 1)
-            c1 = c1.repeat(1, 1, x.size(2), x.size(3))  # (B, 2, H, W)
-            x = torch.cat([x, c1], dim=1)
-
+    def forward(self, x, a=None):
         x0 = self.down0(x)
         x1 = self.down1(x0)
-        x2 = self.down2(x1)   # Dropouta
+        x2 = self.down2(x1)   # Dropout
         x30 = self.down3(x2)   # Dropout
 
         # injection
-
-        # tiled_a = a * tile_like(torch.ones((x3.shape[0], 1)), x3).type_as(x3)
         Z = x30.shape[0] // a.shape[0]  # thickness = B*Z / B
-
         tiled_a = tile_like(a.unsqueeze(1).repeat(1, Z).view(-1, 1), x30).type_as(x30)
         x3 = torch.cat([x30, tiled_a], 1)
 
         xu3 = self.up3(x3)
+        # skip connection
         #cat3 = torch.cat([xu3, x2], 1)
         x5 = self.conv5(xu3)   # Dropout
 
         # injection
-        #tiled_a = a * tile_like(torch.ones((x5.shape[0], 1)), x5).type_as(x5)
         tiled_a = tile_like(a.unsqueeze(1).repeat(1, Z).view(-1, 1), x5).type_as(x5)
         x5 = torch.cat([x5, tiled_a], 1)
 
         xu2 = self.up2(x5)
+        # skip connection
         #cat2 = torch.cat([xu2, x1], 1)
         x6 = self.conv6(xu2)   # Dropout
 
         # injection
-        #tiled_a = a * tile_like(torch.ones((x6.shape[0], 1)), x6).type_as(x6)
         tiled_a = tile_like(a.unsqueeze(1).repeat(1, Z).view(-1, 1), x6).type_as(x6)
         x6 = torch.cat([x6, tiled_a], 1)
 

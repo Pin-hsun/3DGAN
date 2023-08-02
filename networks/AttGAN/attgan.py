@@ -15,7 +15,7 @@ MAX_DIM = 64 * 16  # 1024
 
 
 class Generator(nn.Module): #layers was 5
-    def __init__(self, n_in=3, enc_dim=64, enc_layers=5, enc_norm_fn='batch', enc_acti_fn='lrelu',
+    def __init__(self, n_in=1, enc_dim=64, enc_layers=5, enc_norm_fn='batch', enc_acti_fn='lrelu',
                  dec_dim=64, dec_layers=5, dec_norm_fn='batch', dec_acti_fn='relu',
                  n_attrs=1, shortcut_layers=1, inject_layers=0, img_size=128, final='tanh'):
         super(Generator, self).__init__()
@@ -102,7 +102,7 @@ class Discriminators(nn.Module):
         maxdim = 64 * 16
 
         layers = []
-        n_in = 3 * 2 # temp
+        n_in = 1 # temp
         for i in range(n_layers):
             n_out = min(dim * 2 ** i, maxdim)
             layers += [Conv2dBlock(

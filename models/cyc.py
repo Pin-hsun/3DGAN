@@ -1,14 +1,15 @@
 from models.base import BaseModel, combine
 import copy
 import torch
-
+import tifffile as tiff
+from utils.data_utils import slice_cube
 
 class GAN(BaseModel):
     """
     There is a lot of patterned noise and other failures when using lightning
     """
-    def __init__(self, hparams, train_loader, test_loader, checkpoints):
-        BaseModel.__init__(self, hparams, train_loader, test_loader, checkpoints)
+    def __init__(self, hparams, train_loader, test_loader, checkpoints, resume_ep):
+        BaseModel.__init__(self, hparams, train_loader, test_loader, checkpoints, resume_ep)
 
         self.net_g, self.net_d = self.set_networks()
 
@@ -35,24 +36,25 @@ class GAN(BaseModel):
         return output[0]
 
     def generation(self, batch):
-        img = batch['img']
 
-        self.oriX = img[0]
-        self.oriY = img[1]
+        # make img 2D: (B,1,256,256)
+        # self.oriX = torch.cat(img['imgs'][0], 0)[:, :1, :, :]
+        # self.oriY = torch.cat(img['imgs'][1], 0)[:, :1, :, :]
+        self.oriX = torch.cat([batch['img'][0][i, :, :, :, :] for i in range(batch['img'][0].shape[0])], 3).permute(3,0,1,2)
+        self.oriY = torch.cat([batch['img'][1][i, :, :, :, :] for i in range(batch['img'][1].shape[0])], 3).permute(3,0,1,2)
+        # tiff.imsave('out/oriX.tif', self.oriX.detach().cpu().numpy())
+        # tiff.imsave('out/oriY.tif', self.oriY.detach().cpu().numpy())
 
-        #self.oriY = (self.oriY > -0.9) / 1
-        #self.oriY = 2 * self.oriY - 1
-
-        self.imgXY = self.net_gXY(self.oriX)[0]
-        self.imgYX = self.net_gYX(self.oriY)[0]
+        self.imgXY = self.net_gXY(self.oriX)['out0']
+        self.imgYX = self.net_gYX(self.oriY)['out0']
 
         if self.hparams.lamb > 0:
-            self.imgXYX = self.net_gYX(self.imgXY)[0]
-            self.imgYXY = self.net_gXY(self.imgYX)[0]
+            self.imgXYX = self.net_gYX(self.imgXY)['out0']
+            self.imgYXY = self.net_gXY(self.imgYX)['out0']
 
         if self.hparams.lambI > 0:
-            self.idt_X = self.net_gYX(self.oriX)[0]
-            self.idt_Y = self.net_gXY(self.oriY)[0]
+            self.idt_X = self.net_gYX(self.oriX)['out0']
+            self.idt_Y = self.net_gXY(self.oriY)['out0']
 
     def backward_g(self):
         loss_g = 0
@@ -72,6 +74,8 @@ class GAN(BaseModel):
             loss_g += self.add_loss_l1(a=self.idt_X, b=self.oriX) * self.hparams.lambI
             # Identity(idt_Y, Y)
             loss_g += self.add_loss_l1(a=self.idt_Y, b=self.oriY) * self.hparams.lambI
+
+        loss_g += self.add_loss_l1(a=self.imgXY, b=self.oriX) * self.hparams.lamb * 0.1
 
         return {'sum': loss_g, 'loss_g': loss_g}
 

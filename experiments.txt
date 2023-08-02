@@ -1,0 +1,66 @@
+0603 b=1
+0605_b4_3dnorm batch=4
+0606_b1 b=1 use_upsample=False
+0606_b1_upsample b=1 use_upsample=True
+0607_b1_noinit not weight_init use_upsample=False
+0608 b=4 use_upsample=False (good)
+0612 b=2 use_upsample=False
+0614 b=4 use_upsample=False netD=patch_4
+0614_supervised b=2
+0614_supervised2
+# b=2 modles=cyc_supervised_3D add XZ adverserial_loss
+
+0616_COR2SAG
+# --cropsize  96 --cropz 12 --models cyc3D --netD patch_16_3D --direction CorIwTSE_SagIwTSE -b 2
+0619_COR2SAG
+# --netD patch_16_3D --lamb 1
+0619_COR2SAG_lamb0
+# --netD patch_16 --lamb 1 --lr 0.001 -b 1
+0629_COR2SAG
+# --netD patch_16 --lamb 1 --mc false
+0629_COR2SAG_2
+# --netD patch_16 --lamb 1 --mc false --norm none
+0629_COR2SAG_3
+# --netD patch_4 --lamb 1 --mc false --norm none --cropsize 128 --cropz 16 --b 1
+0630_COR2SAG_cyc2d
+# --netD patch_16 --lamb 1 --mc false --norm none --cropsize 128 --cropz 16 --b 1 --models cyc
+0630_COR2SAG_attgan
+# --netD attgan --lamb 1 --mc false --norm none --cropsize 128 --cropz 16 --b 1 --models cyc
+0705_COR2SAG
+--jsn womac4min0 --prj 0705_COR2SAG --cropsize 128 --cropz 32 --models cyc --direction CorIwTSE_SagIwTSE -b 3 --preload --netG descarsmc --lamb 1 --trd 800
+
+
+
+cyc_oai3d_3
+# --netG ed03d
+cyc_oai3d_4
+# "netG": "descarsmc3D" --norm none
+cyc_oai3d_5
+# --cropz 16 --cropsize 128 --norm none --netG descarsmc3D --netD acgan -b 8
+
+cyc_oai3d_ed03d
+# --cropz 16 --cropsize 128 --netG ed03d --trd 800
+cyc_oai3d_ed023d
+# --cropz 16 --cropsize 128 --netG ed023d --trd 800
+
+cyc_oai3d_1_cut
+# python train.py --jsn cyc_imorphics --prj cyc_oai3d_1_cut --models cyc_oai3d_1_cut_ed023d --cropz 16 --cropsize 128 --netG ed023d
+
+srgan
+#--jsn cyc_imorphics --prj sagan --models cyc_oai3d_srgan_1vggloss --cropz 16 --cropsize 128 --netG ed023d -b 1 --trd 800
+    (vgg_loss * 1e-3)
+srgan_1vggloss
+    (vgg_loss * 1)
+
+0718_cut_3enc
+    input = max(enc(xy), enc1(yz), enc2(xz))
+0719_cut_3enc
+    input = enc(xy)
+
+0725_cyc_oai3d_2_ed023d
+    upsample mode = nearest
+
+0728_cyc_oai3d_coherant
+     --netG resnet2G3D
+
+0728_cyc_oai3d_2_cut_vgg

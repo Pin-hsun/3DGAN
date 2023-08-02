@@ -180,21 +180,4 @@ class GAN(BaseModel):
         for i in range(len(auc)):
             self.log('auc' + str(i), auc[i], on_step=False, on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
 
-    def validation_loggingXXX(self, batch, batch_idx):
-        print('val step')
-        self.batch_idx = batch_idx
-        self.batch = batch
-        if self.hparams.load3d:  # if working on 3D input, bring the Z dimension to the first and combine with batch
-            self.batch['img'] = self.reshape_3d(self.batch['img'])
-
-        self.generation()
-
-        ### STUPID
-        id = self.batch['filenames'][0][0].split('/')[-1].split('_')[0]
-        #if id in ['9026695', '9039627']:
-        if self.batch_idx in [5, 6, 7]:
-            self.log_helper.append(self.oriX)
-            self.log_helper.append(self.imgXY)
-        ### STUPID
-
 #A CUDA_VISIBLE_DEVICES=0,1 python train.py --jsn womac3 --prj 3D/test4ano/0/  --models descar4ano --netG dsnumcrel0a --netD bpatch_16 --split moaks

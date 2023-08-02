@@ -20,12 +20,12 @@ class GAN(BaseModel):
         # First, modify the hyper-parameters if necessary
         # Initialize the networks
         self.net_g, self.net_d = self.set_networks()
-        self.net_dX = copy.deepcopy(self.net_d)
-        self.classifier = nn.Conv2d(256, 1, 1, stride=1, padding=0).cuda()
+        #self.net_dX = copy.deepcopy(self.net_d)
+        self.classifier = nn.Conv2d(256, 2, 1, stride=1, padding=0).cuda()
 
         # update names of the models for optimization
         self.netg_names = {'net_g': 'net_g'}
-        self.netd_names = {'net_d': 'net_d', 'classifier': 'classifier', 'net_dX': 'net_dX'}#, 'net_class': 'netDC'}
+        self.netd_names = {'net_d': 'net_d', 'classifier': 'classifier'}
 
         self.oai = OaiSubjects(self.hparams.dataset)
 
@@ -38,27 +38,28 @@ class GAN(BaseModel):
     @staticmethod
     def add_model_specific_args(parent_parser):
         parser = parent_parser.add_argument_group("LitModel")
-        parser.add_argument("--lbx", dest='lbx', type=float, default=1)
+        parser.add_argument("--lbx", dest='lbx', type=float, default=0)
         parser.add_argument("--dc0", dest='dc0', type=float, default=1)
+        parser.add_argument("--adv", dest='adv', type=float, default=1)
         parser.add_argument("--fix", dest='fix', action='store_true', default=False)
-        parser.add_argument("--lbvgg", dest='lbvgg', type=float, default=1)
+        parser.add_argument("--lbvgg", dest='lbvgg', type=float, default=0)
         return parent_parser
 
     @staticmethod
-    def test_method(net_g, img, a=None):
+    def test_method(net_g, img, args, a=None):
+        print(a)
         oriX = img[0]
 
-        print(a)
-        #imgXX, _ = net_g(oriX, a=torch.FloatTensor([0]))
-        #imgXX = nn.Sigmoid()(imgXX)  # mask
+        imgXX = net_g(oriX, a=0 * torch.FloatTensor([0]))
+        imgXX = nn.Sigmoid()(imgXX['out0'])  # mask
+        #imgXX = combine(imgXX, oriX, method='mul')
 
-        imgXY = net_g(oriX, a=torch.FloatTensor([a]))
+        imgXY = net_g(oriX, a=1 * torch.FloatTensor([a]))
         imgXY = nn.Sigmoid()(imgXY['out0'])  # mask
 
-        #imgXX = combine(imgXX, oriX, method='mul')
-        imgXY = combine(imgXY, oriX, method='mul')
+        combined = combine(imgXY, oriX, method='mul')
 
-        return imgXY
+        return {'imgXY': imgXY[0, ::].detach().cpu(), 'combinedXY': combined[0, ::].detach().cpu()}
 
     def generation(self, batch):
         if self.hparams.load3d:  # if working on 3D input, bring the Z dimension to the first and combine with batch
@@ -78,7 +79,7 @@ class GAN(BaseModel):
         self.imgXY = nn.Sigmoid()(outXa['out0'])  # mask
         self.imgXY = combine(self.imgXY, self.oriX, method='mul')
 
-        if not self.hparams.fix:
+        if self.hparams.lbx > 0:
             outX0 = self.net_g(self.oriX, a=0 * torch.abs(self.labels['paindiff']))
             self.imgXX = nn.Sigmoid()(outX0['out0'])  # mask
             self.imgXX = combine(self.imgXX, self.oriX, method='mul')
@@ -87,21 +88,17 @@ class GAN(BaseModel):
         # ADV(XY)+
         axy = self.add_loss_adv(a=self.imgXY, net_d=self.net_d, truth=True)
 
-        # ADV(XY)+
-        #axx, _ = self.add_loss_adv_classify3d(a=self.imgXX, net_d=self.net_dX, truth_adv=True, truth_classify=False)
-
         # L1(XY, Y)
         loss_l1 = self.add_loss_l1(a=self.imgXY, b=self.oriY)
 
-        # L1(XX, X)
-        if not self.hparams.fix:
-            loss_l1x = self.add_loss_l1(a=self.imgXX, b=self.oriX)
-
         loss_ga = axy# * 0.5 + axx * 0.5
 
-        loss_g = loss_ga + loss_l1 * self.hparams.lamb
-        if not self.hparams.fix:
+        loss_g = loss_ga * self.hparams.adv + loss_l1 * self.hparams.lamb
+
+        if self.hparams.lbx > 0:
+            loss_l1x = self.add_loss_l1(a=self.imgXX, b=self.oriX)
             loss_g += loss_l1x * self.hparams.lbx
+
         if self.hparams.lbvgg > 0:
             loss_gvgg = self.VGGloss(torch.cat([self.imgXY] * 3, 1), torch.cat([self.oriY] * 3, 1))
             loss_g += loss_gvgg * self.hparams.lbvgg
@@ -110,7 +107,7 @@ class GAN(BaseModel):
 
     def backward_d(self):
         # ADV(XY)-
-        axy = self.add_loss_adv(a=self.imgXY, net_d=self.net_d, truth=False)
+        axy = self.add_loss_adv(a=self.imgXY.detach(), net_d=self.net_d, truth=False)
 
         # ADV(XX)-
         #axx, _ = self.add_loss_adv_classify3d(a=self.imgXX, net_d=self.net_dX, truth_adv=False, truth_classify=False)
@@ -123,7 +120,7 @@ class GAN(BaseModel):
         loss_da = axy * 0.5 + ay * 0.5#axy * 0.25 + axx * 0.25 + ax * 0.25 + ay * 0.25
         # classify x (+) vs y (-)
         loss_dc = cxy
-        loss_d = loss_da + loss_dc * self.hparams.dc0
+        loss_d = loss_da * self.hparams.adv + loss_dc * self.hparams.dc0
 
         return {'sum': loss_d, 'da': loss_da, 'dc': loss_dc}
 
@@ -138,7 +135,7 @@ class GAN(BaseModel):
             adv_a = self.criterionGAN(adv_a, torch.zeros_like(adv_a))
             adv_b = self.criterionGAN(adv_b, torch.zeros_like(adv_b))
 
-        classify_logits = swap_by_labels(sign_swap=(truth_classify * 2) - 1, classify_logits=(classify_a - classify_b))
+        classify_logits = swap_by_labels(sign_swap=(truth_classify * 2) - 1, classify_logits=(classify_b - classify_a))
 
         classify, classify_logits = classify_easy_3d(classify_logits, truth_classify, classifier, nn.BCEWithLogitsLoss())
 
@@ -154,35 +151,21 @@ class GAN(BaseModel):
         self.log('valdc', loss_dc, on_step=False, on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
 
         # STUPID WHY INVERSE?
-        label = 1 - self.labels['painbinary'].type(torch.LongTensor)
-
+        label = self.labels['painbinary'].type(torch.LongTensor)
         out = lxy[:, :, 0, 0]
         self.log_helper.append('label', label)
         self.log_helper.append('out', out.cpu().detach())
         return loss_dc
 
     def validation_epoch_end(self, x):
+        """
+        Called at the end of validation to aggregate outputs
+        """
         auc = GetAUC()(torch.cat(self.log_helper.get('label'), 0), torch.cat(self.log_helper.get('out'), 0))
         self.log_helper.clear('label')
         self.log_helper.clear('out')
         for i in range(len(auc)):
             self.log('auc' + str(i), auc[i], on_step=False, on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
 
-    def validation_loggingXXX(self, batch, batch_idx):
-        print('val step')
-        self.batch_idx = batch_idx
-        self.batch = batch
-        if self.hparams.load3d:  # if working on 3D input, bring the Z dimension to the first and combine with batch
-            self.batch['img'] = self.reshape_3d(self.batch['img'])
-
-        self.generation()
-
-        ### STUPID
-        id = self.batch['filenames'][0][0].split('/')[-1].split('_')[0]
-        #if id in ['9026695', '9039627']:
-        if self.batch_idx in [5, 6, 7]:
-            self.log_helper.append(self.oriX)
-            self.log_helper.append(self.imgXY)
-        ### STUPID
-
 # CUDA_VISIBLE_DEVICES=0,1 python train.py --jsn womac3 --prj 3D/test4/  --models descar4 --netG dsmcrel0a --netD bpatch_16 --split moaks
+# CUDA_VISIBLE_DEVICES=0,1,2,3 python train.py --jsn womac3 --prj descar4/L1_100_ls/ --gan_mode lsgan --dataset womac4 --models descar4  --netD bpatch_16 --split a  --lbvgg 0 --mc --direction ap_bp --lbx 1 --lamb 100 --env a6k --netG dsmcrel0a --fix

@@ -45,13 +45,13 @@
         },
     "test":
         {
-            "dataset": "womac3",
-            "testset": "womac3/full/",
+            "dataset": "womac4",
+            "testset": "womac4/full/",
             "load3d": false,
             "unpaired": false,
             "direction": "a_b",
-            "prj": "3D/descar3/GdsmcDbpatch16/",
-            "engine": "descar3",
+            "prj": "3D/test4ano/0v/",
+            "engine": "descar4",
             "netg": "net_g",
             "resize": 384,
             "cropsize": 384,
@@ -62,10 +62,10 @@
             "n01": true,
             "t2d": true,
             "gray": true,
-            "trd": 0,
-            "cmb": "mul",
-            "nepochs": [400, 401, 40],
-            "nalpha": [0, 20, 20],
+            "trd": 800,
+            "cmb": "not",
+            "nepochs": [120, 121, 1],
+            "nalpha": [100, 100, 1],
             "mode": "client",
             "port": "45727"
         }

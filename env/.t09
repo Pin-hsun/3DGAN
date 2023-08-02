@@ -1,6 +1,6 @@
 # Paths
-export LOGS='/media/ExtHDD01/logs/'
-export DATASET='/media/ExtHDD01/Dataset/paired_images/'
+export LOGS='/media/ziyi/glory/logs_pin'
+export DATASET='/media/ziyi/glory/OAIDataBase/'
 #export DATASET='/home/ghc/Dropbox/Family Room/LabProjects/BRC/1220_organoid_roi/'
 
 # Submodels

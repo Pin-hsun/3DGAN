@@ -16,11 +16,20 @@ class GAN(BaseModel):
         BaseModel.__init__(self, hparams, train_loader, test_loader, checkpoints)
 
         # set networks
-        self.hparams.output_nc = 7
+        self.hparams.output_nc = 2
         self.segnet, _ = self.set_networks()
 
-        #self.segnet = torch.load('/media/ExtHDD01/logs/Fly0Bseg/seg0/checkpoints/segnet_model_epoch_140.pth')
-        #self.segnet.train()
+        #self.segnet = torch.load('/media/ExtHDD01/logs/Fly0B/orift0/0/checkpoints/net_g_model_epoch_100.pth', map_location='cuda:0')
+        #self.segnet.conv7_k = nn.Conv2d(32, 2, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)).cuda()
+
+        #self.segnet.conv7_k=nn.Sequential(
+        #    nn.Conv2d(32, 2, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)),
+        #    nn.BatchNorm2d(2),
+        #    #nn.Tanh(),
+        #).cuda()
+
+        self.segnet = torch.load('/media/ExtHDD01/logs/Fly0Bseg/seg0/p3/segnet_model_epoch_400.pth')
+        self.segnet.train()
         # update model names
         self.model_names = {'segnet': 'segnet'}
 
@@ -60,7 +69,7 @@ class GAN(BaseModel):
 
         self.mask = img[0]
         self.mask = self.mask.type(torch.LongTensor).to(self.ori.device)
-        self.oriseg = self.segnet(self.ori)[0]
+        self.oriseg = self.segnet(self.ori)['out0']
 
     def training_step(self, batch, batch_idx):
         self.batch_idx = batch_idx
@@ -126,4 +135,4 @@ class GAN(BaseModel):
 
 
 #CUDA_VISIBLE_DEVICES=0 python train.py --jsn seg --prj segmentation --models segmentation --split a
-#CUDA_VISIBLE_DEVICES=0 python train.py --jsn seg --prj seg0 --models segmentation --split a --dataset Fly0Bseg --directions mask_ori
+#CUDA_VISIBLE_DEVICES=0 python train.py --jsn seg --prj seg0 --models segmentation --split a --dataset Fly0Bseg -b 1--direction mask_ori

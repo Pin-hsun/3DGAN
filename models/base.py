@@ -5,7 +5,7 @@ import torch.optim as optim
 from networks.networks import get_scheduler
 from networks.loss import GANLoss
 import torchvision
-
+import glob
 import time, os
 import pytorch_lightning as pl
 from utils.metrics_segmentation import SegmentationCrossEntropyLoss
@@ -13,6 +13,7 @@ from utils.metrics_classification import CrossEntropyLoss, GetAUC
 from utils.data_utils import *
 from pytorch_lightning.utilities import rank_zero_only
 from models.helper import NeptuneHelper
+
 
 """
 change log
@@ -25,6 +26,14 @@ remove add_loss_adv_classify3d
 swap_by_labels > oai_helper
 auc > logger_helper
 """
+def import_parent():
+    import sys
+    import inspect
+
+    currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
+    parentdir = os.path.dirname(currentdir)
+    print(parentdir)
+    sys.path.insert(0, parentdir)
 
 class Namespace:
     def __init__(self, **kwargs):
@@ -37,7 +46,11 @@ def _weights_init(m):
     if isinstance(m, nn.BatchNorm2d):
         torch.nn.init.normal_(m.weight, 0.0, 0.02)
         torch.nn.init.constant_(m.bias, 0)
-
+    if isinstance(m, (nn.Conv3d, nn.ConvTranspose3d)):
+        torch.nn.init.normal_(m.weight, 0.0, 0.02)
+    if isinstance(m, nn.BatchNorm3d):
+        torch.nn.init.normal_(m.weight, 0.0, 0.02)
+        torch.nn.init.constant_(m.bias, 0)
 
 def combine(x, y, method):
     if method == 'res':
@@ -103,13 +116,13 @@ class VGGLoss(nn.Module):
 
 
 class BaseModel(pl.LightningModule):
-    def __init__(self, hparams, train_loader, test_loader, checkpoints):
+    def __init__(self, hparams, train_loader, test_loader, checkpoints, resume_ep):
         super(BaseModel, self).__init__()
         self.train_loader = train_loader
 
         # initialize
-        self.epoch = 0
         self.dir_checkpoints = checkpoints
+        self.epoch = resume_ep
 
         # save model names
         self.netg_names = {'net_g': 'netG'}
@@ -126,6 +139,7 @@ class BaseModel(pl.LightningModule):
         # Define Loss Functions
         self.CELoss = CrossEntropyLoss()
         self.criterionL1 = nn.L1Loss()
+        self.criterionL2 = nn.MSELoss()
         self.MSELoss = nn.MSELoss()
         if self.hparams.gan_mode == 'vanilla':
             self.criterionGAN = nn.BCEWithLogitsLoss()
@@ -135,7 +149,6 @@ class BaseModel(pl.LightningModule):
 
         # Final
         self.hparams.update(vars(self.hparams))   # updated hparams to be logged in tensorboard
-        self.train_loader.dataset.shuffle_images()  # !!! STUPID shuffle again just to make sure
 
         self.log_helper = NeptuneHelper()
 
@@ -146,10 +159,11 @@ class BaseModel(pl.LightningModule):
         self.net_d_scheduler = get_scheduler(self.optimizer_d, self.hparams)
 
     def configure_optimizers(self):
-        netg_parameters = []
         print('configure optimizer being called')
         print(self.netg_names.keys())
         print(self.netd_names.keys())
+
+        netg_parameters = []
         for g in self.netg_names.keys():
             netg_parameters = netg_parameters + list(getattr(self, g).parameters())
 
@@ -176,6 +190,10 @@ class BaseModel(pl.LightningModule):
         l1 = self.criterionL1(a, b)
         return l1
 
+    def add_loss_l2(self, a, b):
+        l2 = self.criterionL2(a, b)
+        return l2
+
     def training_step(self, batch, batch_idx, optimizer_idx):
         if optimizer_idx == 0:
             self.generation(batch)
@@ -194,10 +212,9 @@ class BaseModel(pl.LightningModule):
             return loss_g['sum']
 
     def training_epoch_end(self, outputs):
-        self.train_loader.dataset.shuffle_images()
-
+        # self.train_loader.dataset.shuffle_images()
         # checkpoint
-        if self.epoch % 20 == 0:
+        if self.epoch % 10 == 0:
             for name in self.netg_names.keys():
                 path_g = self.dir_checkpoints + ('/' + self.netg_names[name] + '_model_epoch_{}.pth').format(self.epoch)
                 torch.save(getattr(self, name), path_g)
@@ -235,13 +252,13 @@ class BaseModel(pl.LightningModule):
     def backward_d(self):
         pass
 
-    def set_networks(self):
+    def set_networks(self, net='all'):
         # GENERATOR
         if self.hparams.netG == 'attgan':
             from networks.AttGAN.attgan import Generator
             print('use attgan generator')
             net_g = Generator(n_in=self.hparams.input_nc, enc_dim=self.hparams.ngf, dec_dim=self.hparams.ngf,
-                              n_attrs=self.hparams.n_attrs, img_size=256,
+                              n_attrs=self.hparams.n_attrs, img_size=self.hparams.cropsize,
                               enc_norm_fn=self.hparams.norm, dec_norm_fn=self.hparams.norm,
                               final=self.hparams.final)
 
@@ -263,13 +280,29 @@ class BaseModel(pl.LightningModule):
                               batch_norm={'batch': True, 'none': False}[self.hparams.norm],  # only bn or none
                               final=self.hparams.final, mc=self.hparams.mc)
 
+        elif (self.hparams.netG).startswith('ed'):
+            print('descar generator: ' + self.hparams.netG)
+            Generator = getattr(getattr(__import__('networks.EncoderDecoder.' + self.hparams.netG), 'EncoderDecoder'),
+                                self.hparams.netG).Generator
+            # descargan only has options for batchnorm or none
+            net_g = Generator(n_channels=self.hparams.input_nc, out_channels=self.hparams.output_nc,
+                              norm=self.hparams.norm,  # only bn, in or none
+                              final=self.hparams.final, mc=self.hparams.mc)
+
+        elif self.hparams.netG .startswith('res'):
+            print('resnet generator: ' + self.hparams.netG)
+            Generator = getattr(getattr(__import__('networks.resnet.' + self.hparams.netG), 'resnet'),
+                                self.hparams.netG).Generator
+            net_g = Generator(input_nc=self.hparams.input_nc,
+                                    output_nc=self.hparams.output_nc, ngf=self.hparams.ngf,
+                                    n_blocks=4, img_size=self.hparams.cropsize, light=True)
+
         elif self.hparams.netG == 'ugatit':
             from networks.ugatit.networks import ResnetGenerator
             print('use ugatit generator')
             net_g = ResnetGenerator(input_nc=self.hparams.input_nc,
                                     output_nc=self.hparams.output_nc, ngf=self.hparams.ngf,
-                                    n_blocks=4, img_size=128, light=True)
-
+                                    n_blocks=4, img_size=self.hparams.cropsize, light=True)
         elif self.hparams.netG == 'genre':
             from networks.genre.generator.Unet_base import SPADEUNet2s
             opt = Namespace(input_size=128, parsing_nc=1, norm_G='spectralspadebatch3x3', spade_mode='res2',
@@ -292,7 +325,10 @@ class BaseModel(pl.LightningModule):
         # DISCRIMINATOR
         if (self.hparams.netD).startswith('patch'):  # Patchgan from cyclegan (the pix2pix one is strange)
             from networks.cyclegan.models import Discriminator
-            net_d = Discriminator(input_shape=(self.hparams.output_nc * 1, 256, 256), patch=int((self.hparams.netD).split('_')[-1]))
+            if (self.hparams.netD).endswith('3D'):
+                net_d = Discriminator(input_shape=(self.hparams.output_nc * 1, self.hparams.cropsize, self.hparams.cropsize),patch=int((self.hparams.netD).split('_')[1]), conv3D=True)
+            else:
+                net_d = Discriminator(input_shape=(self.hparams.output_nc * 1, self.hparams.cropsize, self.hparams.cropsize), patch=int((self.hparams.netD).split('_')[-1]))
         elif (self.hparams.netD).startswith('bpatch'):  # Patchgan from cyclegan (the pix2pix one is strange)
             from networks.cyclegan.modelsb import Discriminator
             net_d = Discriminator(input_shape=(self.hparams.output_nc * 1, 256, 256), patch=int((self.hparams.netD).split('_')[-1]))
@@ -302,15 +338,15 @@ class BaseModel(pl.LightningModule):
         elif self.hparams.netD == 'sagan':
             from networks.sagan.sagan import Discriminator
             print('use sagan discriminator')
-            net_d = Discriminator(image_size=64)
+            net_d = Discriminator(image_size=self.hparams.cropsize)
         elif self.hparams.netD == 'acgan':
             from networks.acgan import Discriminator
             print('use acgan discriminator')
-            net_d = Discriminator(img_shape=(self.hparams.output_nc_nc * 1, 256, 256), n_classes=2)
+            net_d = Discriminator(img_shape=(self.hparams.output_nc * 1, self.hparams.cropsize, self.hparams.cropsize), n_classes=2)
         elif self.hparams.netD == 'attgan':
             from networks.AttGAN.attgan import Discriminators
             print('use attgan discriminator')
-            net_d = Discriminators(img_size=256, cls=2)
+            net_d = Discriminators(img_size=self.hparams.cropsize, cls=2)
         elif self.hparams.netD == 'descar':
             from networks.DeScarGan.descargan import Discriminator
             print('use descargan discriminator')
@@ -322,7 +358,7 @@ class BaseModel(pl.LightningModule):
         elif self.hparams.netD == 'ugatitb':
             from networks.ugatit.networksb import Discriminator
             print('use ugatitb discriminator')
-            net_d = Discriminator(self.hparams.output_nc * 1, ndf=64, n_layers=5)
+            net_d = Discriminator(self.hparams.output_nc * 1, ndf=64, n_layers=5, use_3D=True)
         # original pix2pix, the size of patchgan is strange, just use for pixel-D
         else:
             from networks.networks import define_D
@@ -337,4 +373,10 @@ class BaseModel(pl.LightningModule):
             print('no init netD of sagan')
         else:
             net_d = net_d.apply(_weights_init)
-        return net_g, net_d
+
+        if net == 'all':
+            return net_g, net_d
+        elif net == 'g':
+            return net_g
+        elif net == 'd':
+            return net_d

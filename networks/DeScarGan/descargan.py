@@ -42,7 +42,6 @@ def conv2d_bn_block(in_channels, out_channels, kernel=3, momentum=0.01, activati
         activation(),
     )
 
-
 def deconv2d_bn_block(in_channels, out_channels, use_upsample=True, kernel=4, stride=2, padding=1, momentum=0.01,
                       activation=ACTIVATION):
     if use_upsample:
@@ -58,6 +57,26 @@ def deconv2d_bn_block(in_channels, out_channels, use_upsample=True, kernel=4, st
         activation(),
     )
 
+def conv3d_bn_block(in_channels, out_channels, kernel=3, stride=1, padding=1, momentum=0.01, activation=ACTIVATION):
+    return nn.Sequential(
+        nn.Conv3d(in_channels, out_channels, kernel, stride=stride, padding=padding),
+        nn.BatchNorm3d(out_channels, momentum=momentum),
+        activation(),
+    )
+
+def deconv3d_bn_block(in_channels, out_channels, use_upsample=True,  kernel=4, stride=2, padding=1, momentum=0.01, activation=ACTIVATION):
+    if use_upsample:
+        up = nn.Sequential(
+            nn.Upsample(scale_factor=2),
+            nn.Conv3d(in_channels, out_channels, 3, stride=1, padding=1)
+        )
+    else:
+        up = nn.ConvTranspose3d(in_channels, out_channels, kernel, stride=stride, padding=padding)
+    return nn.Sequential(
+        up,
+        nn.BatchNorm3d(out_channels, momentum=momentum),
+        activation(),
+    )
 
 def dense_layer_bn(in_dim, out_dim, momentum=0.01, activation=ACTIVATION):
     return nn.Sequential(
@@ -73,14 +92,21 @@ def conv2d_block(in_channels, out_channels, kernel=3, stride=1, padding=1, activ
         activation(),
     )
 
+def conv3d_block(in_channels, out_channels, kernel=3, stride=1, padding=1, activation=ACTIVATION):
+    return nn.Sequential(
+        nn.Conv3d(in_channels, out_channels, kernel, stride=stride, padding=padding),
+        activation(),
+    )
 
 class Generator(nn.Module):
-    def __init__(self, n_channels=1, out_channels=1, nf=32, batch_norm=True, activation=ACTIVATION, final='tanh', mc=False):
+    def __init__(self, n_channels=1, out_channels=1, nf=32, batch_norm=True, activation=ACTIVATION, final='tanh'
+                 , mc=False, conv3D=False):
         super(Generator, self).__init__()
 
         conv_block = conv2d_bn_block if batch_norm else conv2d_block
 
         max_pool = nn.MaxPool2d(2)
+
         act = activation
         self.label_k = torch.tensor([0, 1]).half()
         self.c_dim = 0
@@ -152,6 +178,7 @@ class Generator(nn.Module):
         x3 = self.down3(x2)
 
         xu3 = self.up3(x3)
+
         cat3 = torch.cat([xu3, x2], 1)
         x5 = self.conv5(cat3)
         xu2 = self.up2(x5)
@@ -177,8 +204,8 @@ class Discriminator(nn.Module):
         self.label_k = torch.ones(1).long()
 
         conv_block = conv2d_bn_block if batch_norm else conv2d_block
+        max_pool = nn.MaxPool2d(2)
 
-        max_pool = nn.MaxPool2d
         self.encoder = nn.Sequential(
             conv_block(n_channels, nf),
             max_pool(2),

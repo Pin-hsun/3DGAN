@@ -1,17 +1,20 @@
 from __future__ import print_function
 import argparse
-import torch.nn as nn
+import glob
+
+import torch
 from torch.utils.data import DataLoader
-import os, shutil, time
+import os, shutil, time, sys
 from tqdm import tqdm
 from dotenv import load_dotenv
+from sklearn.model_selection import train_test_split
+import tifffile as tiff
 
 from utils.make_config import load_json, save_json
 import json
 import pytorch_lightning as pl
 from pytorch_lightning import loggers as pl_loggers
 from dataloader.data_multi import MultiData as Dataset
-
 
 def prepare_log(args):
     """
@@ -38,15 +41,16 @@ parser.add_argument('--models', dest='models', type=str, help='use which models'
 parser.add_argument('--dataset', type=str)
 parser.add_argument('--preload', action='store_true')
 parser.add_argument('--split', type=str, help='split of data')
-parser.add_argument('--load3d', action='store_true', dest='load3d', default=False, help='do 3D')
-
 parser.add_argument('--flip', action='store_true', dest='flip', help='image flip left right')
 parser.add_argument('--resize', type=int, help='size for resizing before cropping, 0 for no resizing')
 parser.add_argument('--cropsize', type=int, help='size for cropping, 0 for no crop')
+parser.add_argument('--cropz', type=int, default=0)
 parser.add_argument('--direction', type=str, help='paired: a_b, unpaired a%b ex:(a_b%c_d)')
-parser.add_argument('--nm', type=str, help='paired: a_b, unpaired a%b ex:(a_b%c_d)')
+parser.add_argument('--nm', type=str, help='normalization method for dataset')
 parser.add_argument('--gray', action='store_true', dest='gray', default=False, help='dont copy img to 3 channel')
 parser.add_argument('--spd', action='store_true', dest='spd', default=False, help='USE SPADE?')
+parser.add_argument('--permute', action='store_true', dest='permute', default=False, help='do interpolation and permutation')
+parser.add_argument('--load_3D', action='store_true', dest='load_3D', default=False, help='load 3D cube')
 # Model
 parser.add_argument('--gan_mode', type=str, help='gan mode')
 parser.add_argument('--netG', type=str, help='netG model')
@@ -60,9 +64,10 @@ parser.add_argument('--ndf', type=int, help='discriminator filters in first conv
 # parser.add_argument("--n_attrs", type=int, default=1)   # NOT IN USE?
 parser.add_argument('--final', type=str, dest='final', help='activation of final layer')
 parser.add_argument('--cmb', dest='cmb', help='method to combine the outputs to the original')
-parser.add_argument('--trd', type=float, dest='trd', help='threshold of images')
+parser.add_argument('--trd', type=int, dest='trd', nargs='+',  help='threshold of images')
 # Training
 parser.add_argument('-b', dest='batch_size', type=int, help='training batch size')
+parser.add_argument('--resume', action='store_true', default=False, help='resume last time training')
 # parser.add_argument('--test_batch_size', type=int, help='testing batch size') # NOT IN USE?
 parser.add_argument('--n_epochs', type=int, help='# of iter at starting learning rate')
 parser.add_argument('--lr', type=float, help='initial learning rate f -or adam')
@@ -89,7 +94,7 @@ parser = GAN.add_model_specific_args(parser)
 # Read json file and update it
 with open('env/jsn/' + parser.parse_args().jsn + '.json', 'rt') as f:
     t_args = argparse.Namespace()
-    t_args.__dict__.update(json.load(f)['train'])
+    t_args.__dict__.update(json.load(f))
     args = parser.parse_args(namespace=t_args)
 
 # environment file
@@ -99,34 +104,37 @@ else:
     load_dotenv('env/.t09')
 
 # Finalize Arguments and create files for logging
+args.bash = ' '.join(sys.argv)
 args = prepare_log(args)
 
 print(args)
 
 # Load Dataset and DataLoader
-from env.custom_data_utils import customize_data_split
+all_img_files = len(glob.glob(os.environ.get('DATASET') + args.dataset + args.direction.split('_')[0] + '/*'))
+train_index, test_index = train_test_split(range(all_img_files), test_size=0.3, random_state=42)
 
-folder, train_index, test_index = customize_data_split(args=args)
+# train_index, test_index = train_index[:7], test_index[:3]
+print('train set:', len(train_index))
 
-train_set = Dataset(root=os.environ.get('DATASET') + args.dataset + folder,
-                    path=args.direction,
-                    opt=args, mode='train', index=train_index, filenames=True)
+train_set = Dataset(root=os.environ.get('DATASET') + args.dataset, path=args.direction,
+                    opt=args, mode='train', index=train_index, filenames=False)
+
 train_loader = DataLoader(dataset=train_set, num_workers=args.threads, batch_size=args.batch_size, shuffle=True, pin_memory=True)
 
-if test_index is not None:
-    test_set = Dataset(root=os.environ.get('DATASET') + args.dataset + folder,
-                       path=args.direction,
-                       opt=args, mode='test', index=test_index, filenames=True)
-    test_loader = DataLoader(dataset=test_set, num_workers=args.threads, batch_size=args.batch_size, shuffle=False, pin_memory=True)
-else:
-    test_loader = None
+# if test_index is not None:
+# test_set = Dataset(root=os.environ.get('DATASET') + args.dataset,
+#                    path=args.direction, opt=args, mode='test', index=test_index, filenames=False)
+#
+# test_loader = DataLoader(dataset=test_set, num_workers=args.threads, batch_size=args.batch_size, shuffle=False, pin_memory=True)
+# else:
+test_loader = None
 
 
 # preload
 if args.preload:
     tini = time.time()
     print('Preloading...')
-    for i, x in enumerate(tqdm(train_loader)):
+    for i, x in enumerate((train_loader)):
         pass
     if test_loader is not None:
         for i, x in enumerate(tqdm(test_loader)):
@@ -135,29 +143,35 @@ if args.preload:
 
 
 # Logger
-if 0:
-    from pytorch_lightning.loggers.neptune import NeptuneLogger
-    logger = NeptuneLogger(
-        api_key="eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsIjoiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXkiOiIyNmQ4NzVkMi00YWZkLTQ4MTctOGE5ZC02N2U4ZGU1YWVkZjYifQ==",
-        project="OaiGanRel")
-        #api_key="ANONYMOUS",
-        #project="test_neptune")
-else:
-    logger = pl_loggers.TensorBoardLogger(os.environ.get('LOGS') + args.dataset + '/', name=args.prj)
-
+logger = pl_loggers.TensorBoardLogger(os.environ.get('LOGS') + args.dataset + '/', name=args.prj)
 
 # Trainer
 checkpoints = os.path.join(os.environ.get('LOGS'), args.dataset, args.prj, 'checkpoints')
 os.makedirs(checkpoints, exist_ok=True)
-net = GAN(hparams=args, train_loader=train_loader, test_loader=test_loader, checkpoints=checkpoints)
-trainer = pl.Trainer(gpus=-1, strategy='ddp',
-                     max_epochs=args.n_epochs + 1,# progress_bar_refresh_rate=20,
-                     logger=logger,
-                     enable_checkpointing=False, log_every_n_steps=200,
-                     check_val_every_n_epoch=1)
-print(args)
-trainer.fit(net, train_loader, test_loader)  # test loader not used during training
 
+# continue training
+if args.resume:
+    if os.path.isfile(checkpoints+'/final.ckpt'):
+        trainer = pl.Trainer(gpus=-1, strategy='ddp', resume_from_checkpoint=checkpoints+'/final.ckpt')
+        resume_checkpoint = torch.load(checkpoints+'/final.ckpt')
+        net = GAN(hparams=args, train_loader=train_loader, test_loader=test_loader, checkpoints=checkpoints, resume_ep=resume_checkpoint['epoch'])
+        print('load checkpoints')
+    else:
+        print('no checkpoint for resume')
+else:
+    trainer = pl.Trainer(gpus=-1, strategy='ddp',
+                         max_epochs=args.n_epochs + 1,# progress_bar_refresh_rate=20,
+                         logger=logger,
+                         enable_checkpointing=False, log_every_n_steps=200,
+                         check_val_every_n_epoch=1)
+    net = GAN(hparams=args, train_loader=train_loader, test_loader=test_loader, checkpoints=checkpoints, resume_ep=0)
+
+print(args)
+
+trainer.fit(net, train_loader, test_loader)  # test loader not used during training
+trainer.save_checkpoint(checkpoints+'/final.ckpt')
+
+# CUDA_VISIBLE_DEVICES=0,1,2,3 python train.py --jsn womac4min0 -b 1 --prj 0518 --models cyc --netG descargan --lamb 0 --lambI 0
 
 # Examples of  Usage XXXYYYZZ
 # CUDA_VISIBLE_DEVICES=0,1,2,3 python train.py --jsn womac3 --prj 3D/descar3/GdsmcDbpatch16  --models descar3 --netG dsmc --netD bpatch_16 --direction ap_bp --final none -b 1 --split moaks --final none --n_epochs 400

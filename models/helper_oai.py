@@ -28,11 +28,14 @@ def classify_easy_3d(classify_logits, truth_classify, classifier, criterion):
     classify_logits = nn.AdaptiveAvgPool2d(1)(classify_logits)  # (B, Z, 256, 1, 1)
     classify_logits, _ = torch.max(classify_logits, 1)
     classify_logits = classifier(classify_logits)
-    classify = criterion(classify_logits, truth_classify.view(-1, 1, 1, 1).type_as(classify_logits))
+    classify = criterion(classify_logits[:, 1:, :, :], truth_classify.view(-1, 1, 1, 1).type_as(classify_logits))
     return classify, classify_logits
 
 
 def swap_by_labels(sign_swap, classify_logits):
+    """
+    :param sign_swap: (B, Z)
+    """
     # print(classify_a.shape)  #(46, 256, 16, 16)
     # print(truth_classify.shape)  # (2) (0~1)
     # STUPID MESS UP PART WHERE I MULTIPLE FEATURES DIFF WITH LABEL SIGN
